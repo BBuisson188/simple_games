@@ -1,0 +1,18 @@
+{
+  "name": "Mini Games",
+  "short_name": "Mini Games",
+  "description": "A simple offline-capable mini-games web app.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f3ea",
+  "theme_color": "#146c63",
+  "icons": [
+    {
+      "src": "./assets/icons/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

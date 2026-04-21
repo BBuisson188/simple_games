@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Mini Games icon">
+  <rect width="512" height="512" rx="96" fill="#146c63"/>
+  <circle cx="154" cy="168" r="48" fill="#f2b84b"/>
+  <rect x="238" y="120" width="132" height="96" rx="28" fill="#ffffff"/>
+  <path d="M132 320h248" stroke="#ffffff" stroke-width="42" stroke-linecap="round"/>
+  <path d="M256 244v152" stroke="#f2b84b" stroke-width="42" stroke-linecap="round"/>
+  <circle cx="366" cy="330" r="24" fill="#f2b84b"/>
+</svg>
