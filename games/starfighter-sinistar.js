@@ -1,6 +1,6 @@
 const ships = {
-  falcon: { name: "Millennium Falcon", note: "Heavy freighter, double lasers, tougher handling.", radius: 18, acceleration: 410, drag: 0.985, maxSpeed: 245, laserCount: 2, laserSpread: 9 },
-  xwing: { name: "X-wing Fighter", note: "Quick starfighter, narrow profile, sharp control.", radius: 14, acceleration: 500, drag: 0.982, maxSpeed: 290, laserCount: 1, laserSpread: 0 }
+  falcon: { name: "Millennium Falcon", note: "Heavy freighter, double lasers, tougher handling.", radius: 18, acceleration: 520, drag: 0.978, maxSpeed: 255, laserCount: 2, laserSpread: 9 },
+  xwing: { name: "X-wing Fighter", note: "Quick starfighter, narrow profile, sharp control.", radius: 14, acceleration: 640, drag: 0.976, maxSpeed: 305, laserCount: 1, laserSpread: 0 }
 };
 
 const stages = [
@@ -85,7 +85,7 @@ function initStarfighterSinistar() {
   const joystick = root.querySelector("[data-star-joystick]");
   const knob = root.querySelector("[data-star-knob]");
   const shipButtons = [...root.querySelectorAll("[data-starship-choice]")];
-  const input = { x: 0, y: -1, active: false, fire: false, keys: new Set() };
+  const input = { x: 0, y: 0, active: false, pointerId: null, fire: false, firePointerId: null, keys: new Set() };
   const state = {
     running: false, mode: "select", selectedShip: "xwing", level: 0, score: 0, hits: 0, kills: 0,
     player: null, enemies: [], asteroids: [], playerLasers: [], enemyLasers: [], torpedo: null,
@@ -153,8 +153,10 @@ function initStarfighterSinistar() {
     state.lastTime = 0;
     state.deathCharge = 0;
     input.x = 0;
-    input.y = -1;
-    knob.style.transform = "translate(-50%, -86%)";
+    input.y = 0;
+    input.pointerId = null;
+    input.firePointerId = null;
+    knob.style.transform = "translate(-50%, -50%)";
     for (let i = 0; i < stage().asteroidCount; i += 1) spawnAsteroid(true);
     setMessage(`Level ${state.level + 1}: ${stage().name}`, `${ship().name} ready. Destroy ${stage().killsNeeded} TIE fighters to draw out the boss.`, 3);
     updateHud();
@@ -369,8 +371,9 @@ function initStarfighterSinistar() {
       state.player.vx += nx * ship().acceleration * dt;
       state.player.vy += ny * ship().acceleration * dt;
     }
-    state.player.vx *= ship().drag;
-    state.player.vy *= ship().drag;
+    const drag = Math.pow(ship().drag, dt * 60);
+    state.player.vx *= drag;
+    state.player.vy *= drag;
     const speed = Math.hypot(state.player.vx, state.player.vy);
     if (speed > ship().maxSpeed) {
       state.player.vx = (state.player.vx / speed) * ship().maxSpeed;
@@ -790,6 +793,7 @@ function initStarfighterSinistar() {
     if (event.target.closest("[data-star-fire]")) {
       event.preventDefault();
       input.fire = true;
+      input.firePointerId = event.pointerId;
       fireLaser();
       event.target.setPointerCapture(event.pointerId);
       return;
@@ -802,20 +806,27 @@ function initStarfighterSinistar() {
     if (event.target.closest("[data-star-joystick]")) {
       event.preventDefault();
       input.active = true;
+      input.pointerId = event.pointerId;
       joystick.setPointerCapture(event.pointerId);
       updateJoystick(event);
     }
   });
   panel.addEventListener("pointermove", (event) => {
-    if (input.active) updateJoystick(event);
+    if (input.active && event.pointerId === input.pointerId) updateJoystick(event);
   });
   panel.addEventListener("pointerup", (event) => {
-    if (event.target.closest("[data-star-fire]")) input.fire = false;
-    if (input.active) resetJoystick();
+    if (event.pointerId === input.firePointerId) {
+      input.fire = false;
+      input.firePointerId = null;
+    }
+    if (input.active && event.pointerId === input.pointerId) resetJoystick();
   });
-  panel.addEventListener("pointercancel", () => {
-    input.fire = false;
-    resetJoystick();
+  panel.addEventListener("pointercancel", (event) => {
+    if (event.pointerId === input.firePointerId) {
+      input.fire = false;
+      input.firePointerId = null;
+    }
+    if (event.pointerId === input.pointerId) resetJoystick();
   });
 
   window.addEventListener("keydown", keyDown);
@@ -861,18 +872,22 @@ function initStarfighterSinistar() {
     const cy = rect.top + rect.height / 2;
     const dx = event.clientX - cx;
     const dy = event.clientY - cy;
-    const max = rect.width * 0.34;
+    const max = rect.width * 0.38;
+    const deadzone = rect.width * 0.045;
     const stickDistance = Math.min(max, Math.hypot(dx, dy));
     const angle = Math.atan2(dy, dx);
     const x = Math.cos(angle) * stickDistance;
     const y = Math.sin(angle) * stickDistance;
-    input.x = x / max;
-    input.y = y / max;
+    const normalized = stickDistance <= deadzone ? 0 : (stickDistance - deadzone) / (max - deadzone);
+    const curved = Math.min(1, Math.pow(normalized, 0.72));
+    input.x = Math.cos(angle) * curved;
+    input.y = Math.sin(angle) * curved;
     knob.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
   }
 
   function resetJoystick() {
     input.active = false;
+    input.pointerId = null;
     input.x = 0;
     input.y = 0;
     knob.style.transform = "translate(-50%, -50%)";
@@ -882,6 +897,8 @@ function initStarfighterSinistar() {
     stop() {
       state.running = false;
       input.fire = false;
+      input.firePointerId = null;
+      input.pointerId = null;
       window.removeEventListener("keydown", keyDown);
       window.removeEventListener("keyup", keyUp);
     }
