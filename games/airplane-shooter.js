@@ -1606,6 +1606,36 @@ function initAirplaneShooter() {
     if (action === "right") input.right = false;
   }
 
+  let lastPointerCommandAt = 0;
+
+  function runButtonCommand(target) {
+    if (target.closest("[data-continue-flight]")) {
+      continueAfterCrash();
+      return true;
+    }
+    if (target.closest("[data-next-level]")) {
+      startNextStage();
+      return true;
+    }
+    if (target.closest("[data-restart-game]")) {
+      restartFromSelect();
+      return true;
+    }
+    if (target.closest("[data-show-leaderboard]")) {
+      showLeaderboard();
+      return true;
+    }
+    if (target.closest("[data-save-score]")) {
+      saveScoreFromOverlay();
+      return true;
+    }
+    if (target.closest("[data-close-overlay]")) {
+      hideOverlay();
+      return true;
+    }
+    return false;
+  }
+
   panel.addEventListener("click", (event) => {
     const planeButton = event.target.closest("[data-plane-choice]");
     const layoutButton = event.target.closest("[data-layout-choice]");
@@ -1620,15 +1650,18 @@ function initAirplaneShooter() {
       state.throttle = Math.max(0, state.throttle - 1);
       updateHud();
     }
-    if (event.target.closest("[data-continue-flight]")) continueAfterCrash();
-    if (event.target.closest("[data-next-level]")) startNextStage();
-    if (event.target.closest("[data-restart-game]")) restartFromSelect();
-    if (event.target.closest("[data-show-leaderboard]")) showLeaderboard();
-    if (event.target.closest("[data-save-score]")) saveScoreFromOverlay();
-    if (event.target.closest("[data-close-overlay]")) hideOverlay();
+    if (Date.now() - lastPointerCommandAt > 450) {
+      runButtonCommand(event.target);
+    }
   });
 
   panel.addEventListener("pointerdown", (event) => {
+    if (runButtonCommand(event.target)) {
+      lastPointerCommandAt = Date.now();
+      event.preventDefault();
+      return;
+    }
+
     const fireButton = event.target.closest("[data-fire]");
     if (fireButton) {
       event.preventDefault();

@@ -2,7 +2,7 @@ import { renderMadLibs } from "./games/mad-libs.js";
 import { renderAirplaneShooter } from "./games/airplane-shooter.js";
 import { renderPlaceholder } from "./games/placeholders.js";
 
-const APP_VERSION = "v21";
+const APP_VERSION = "v22";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
 
