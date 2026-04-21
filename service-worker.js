@@ -1,4 +1,4 @@
-const CACHE_NAME = "mini-games-v16";
+const CACHE_NAME = "mini-games-v17";
 
 const APP_ASSETS = [
   "./",
@@ -15,7 +15,15 @@ const APP_ASSETS = [
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_ASSETS))
+      .then((cache) => Promise.all(
+        APP_ASSETS.map((asset) => (
+          fetch(asset, { cache: "reload" })
+            .then((response) => {
+              if (!response.ok) throw new Error(`Failed to cache ${asset}`);
+              return cache.put(asset, response);
+            })
+        ))
+      ))
       .then(() => self.skipWaiting())
   );
 });
@@ -34,9 +42,17 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    caches.match(event.request)
-      .then((cachedResponse) => cachedResponse || fetch(event.request))
+    fetch(event.request)
+      .then((networkResponse) => {
+        const responseCopy = networkResponse.clone();
+        caches.open(CACHE_NAME)
+          .then((cache) => cache.put(event.request, responseCopy));
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

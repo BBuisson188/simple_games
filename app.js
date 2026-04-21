@@ -2,6 +2,7 @@ import { renderMadLibs } from "./games/mad-libs.js";
 import { renderAirplaneShooter } from "./games/airplane-shooter.js";
 import { renderPlaceholder } from "./games/placeholders.js";
 
+const APP_VERSION = "v17";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
 
@@ -67,8 +68,10 @@ function openGame(gameId) {
 }
 
 function updateOfflineStatus() {
-  offlineStatus.textContent = navigator.onLine ? "Online" : "Offline";
+  offlineStatus.textContent = `${navigator.onLine ? "Online" : "Offline"} ${APP_VERSION}`;
 }
+
+let refreshingForNewServiceWorker = false;
 
 app.addEventListener("click", (event) => {
   const gameButton = event.target.closest("[data-game]");
@@ -85,7 +88,14 @@ app.addEventListener("click", (event) => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./service-worker.js");
+    navigator.serviceWorker.register("./service-worker.js")
+      .then((registration) => registration.update());
+  });
+
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (refreshingForNewServiceWorker) return;
+    refreshingForNewServiceWorker = true;
+    window.location.reload();
   });
 }
 
