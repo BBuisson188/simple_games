@@ -37,7 +37,7 @@ const stages = [
     terrain: "field",
     enemyPoints: 500,
     enemySpeed: 0.16,
-    enemyCount: 8,
+    enemyCount: 16,
     stageBonus: 500,
     fastTime: 34,
     slowTime: 58,
@@ -48,7 +48,7 @@ const stages = [
     terrain: "water",
     enemyPoints: 650,
     enemySpeed: 0.2,
-    enemyCount: 10,
+    enemyCount: 20,
     stageBonus: 800,
     fastTime: 32,
     slowTime: 55,
@@ -59,7 +59,7 @@ const stages = [
     terrain: "farm",
     enemyPoints: 825,
     enemySpeed: 0.24,
-    enemyCount: 12,
+    enemyCount: 24,
     stageBonus: 1200,
     fastTime: 30,
     slowTime: 52,
@@ -70,7 +70,7 @@ const stages = [
     terrain: "mountain",
     enemyPoints: 1000,
     enemySpeed: 0.3,
-    enemyCount: 14,
+    enemyCount: 28,
     stageBonus: 1800,
     fastTime: 28,
     slowTime: 49,
@@ -589,12 +589,12 @@ function initAirplaneShooter() {
     const targetSpeed = (state.throttle / 4) * plane.topSpeed;
     state.speed += (targetSpeed - state.speed) * Math.min(1, dt * 1.8);
     state.runway += state.speed * dt * 24;
-    if (state.runway > RUNWAY_LIMIT && state.takeoffBlend < 0.18) {
+    if (state.runway > RUNWAY_LIMIT && state.speed < 0.45 && state.takeoffBlend < 0.18) {
       beginCrash("Runway overrun");
       return;
     }
     if (state.speed > 0.45 && state.runway > 12) {
-      state.takeoffBlend = Math.min(1, state.takeoffBlend + dt * 0.42);
+      state.takeoffBlend = Math.min(1, state.takeoffBlend + dt * (0.62 + state.speed * 0.35));
       state.planeY = 0.78 + state.takeoffBlend * 0.05;
       setMessage("Lifting off", "The runway is dropping away. Get ready to bank.");
     }
