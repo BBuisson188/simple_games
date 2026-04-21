@@ -1,4 +1,4 @@
-const CACHE_NAME = "mini-games-v18";
+const CACHE_NAME = "mini-games-v19";
 
 const APP_ASSETS = [
   "./",
