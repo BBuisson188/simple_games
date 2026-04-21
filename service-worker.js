@@ -1,4 +1,4 @@
-const CACHE_NAME = "mini-games-v17";
+const CACHE_NAME = "mini-games-v18";
 
 const APP_ASSETS = [
   "./",
@@ -6,6 +6,7 @@ const APP_ASSETS = [
   "./styles.css",
   "./app.js",
   "./manifest.json",
+  "./reset.html",
   "./games/airplane-shooter.js",
   "./games/mad-libs.js",
   "./games/placeholders.js",
