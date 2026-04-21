@@ -1,8 +1,9 @@
 import { renderMadLibs } from "./games/mad-libs.js";
 import { renderAirplaneShooter } from "./games/airplane-shooter.js";
+import { renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
 import { renderPlaceholder } from "./games/placeholders.js";
 
-const APP_VERSION = "v23";
+const APP_VERSION = "v25";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
 
@@ -20,10 +21,10 @@ const games = [
     render: renderAirplaneShooter
   },
   {
-    id: "future-game-1",
-    title: "Future Game",
-    subtitle: "Placeholder",
-    render: () => renderPlaceholder("Future Game", "Add your next mini-game here.")
+    id: "starfighter-arena",
+    title: "Starfighter Arena",
+    subtitle: "Sinistar-style space battle",
+    render: renderStarfighterSinistar
   },
   {
     id: "future-game-2",
