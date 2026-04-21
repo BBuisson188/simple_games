@@ -1609,6 +1609,30 @@ function initAirplaneShooter() {
   let lastPointerCommandAt = 0;
 
   function runButtonCommand(target) {
+    const planeButton = target.closest("[data-plane-choice]");
+    const layoutButton = target.closest("[data-layout-choice]");
+    if (planeButton) {
+      choosePlane(planeButton.dataset.planeChoice);
+      return true;
+    }
+    if (layoutButton) {
+      setLayout(layoutButton.dataset.layoutChoice);
+      return true;
+    }
+    if (target.closest("[data-start-flight]")) {
+      startGame();
+      return true;
+    }
+    if (target.closest("[data-throttle-up]")) {
+      state.throttle = Math.min(4, state.throttle + 1);
+      updateHud();
+      return true;
+    }
+    if (target.closest("[data-throttle-down]")) {
+      state.throttle = Math.max(0, state.throttle - 1);
+      updateHud();
+      return true;
+    }
     if (target.closest("[data-continue-flight]")) {
       continueAfterCrash();
       return true;
@@ -1637,25 +1661,14 @@ function initAirplaneShooter() {
   }
 
   panel.addEventListener("click", (event) => {
-    const planeButton = event.target.closest("[data-plane-choice]");
-    const layoutButton = event.target.closest("[data-layout-choice]");
-    if (planeButton) choosePlane(planeButton.dataset.planeChoice);
-    if (layoutButton) setLayout(layoutButton.dataset.layoutChoice);
-    if (event.target.closest("[data-start-flight]")) startGame();
-    if (event.target.closest("[data-throttle-up]")) {
-      state.throttle = Math.min(4, state.throttle + 1);
-      updateHud();
-    }
-    if (event.target.closest("[data-throttle-down]")) {
-      state.throttle = Math.max(0, state.throttle - 1);
-      updateHud();
-    }
     if (Date.now() - lastPointerCommandAt > 450) {
       runButtonCommand(event.target);
     }
   });
 
   panel.addEventListener("pointerdown", (event) => {
+    if (event.target.closest("input, select")) return;
+
     if (runButtonCommand(event.target)) {
       lastPointerCommandAt = Date.now();
       event.preventDefault();
