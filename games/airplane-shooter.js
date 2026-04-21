@@ -756,10 +756,12 @@ function initAirplaneShooter() {
     const currentStage = stage();
 
     const sky = ctx.createLinearGradient(0, 0, 0, horizon);
-    sky.addColorStop(0, "#73bdf7");
-    sky.addColorStop(1, "#d8f2ff");
+    sky.addColorStop(0, "#5faee8");
+    sky.addColorStop(0.55, "#a9ddfb");
+    sky.addColorStop(1, "#e6f7ff");
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, horizon);
+    drawClouds(horizon);
 
     if (currentStage.terrain === "water") {
       drawWater(horizon);
@@ -782,6 +784,31 @@ function initAirplaneShooter() {
     }
   }
 
+  function drawClouds(horizon) {
+    const w = canvas.width;
+    const drift = (state.distance * 5 + state.runway * 1.5) % (w + 220);
+    const clouds = [
+      { x: 80, y: horizon * 0.28, s: 1.05 },
+      { x: 310, y: horizon * 0.18, s: 0.75 },
+      { x: 520, y: horizon * 0.35, s: 0.9 }
+    ];
+
+    ctx.fillStyle = "rgba(255,255,255,0.72)";
+    clouds.forEach((cloud) => {
+      const x = ((cloud.x - drift * 0.25) % (w + 220)) - 90;
+      drawCloud(x, cloud.y, cloud.s);
+    });
+  }
+
+  function drawCloud(x, y, scale) {
+    ctx.beginPath();
+    ctx.ellipse(x, y, 34 * scale, 13 * scale, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + 30 * scale, y + 3 * scale, 30 * scale, 11 * scale, 0, 0, Math.PI * 2);
+    ctx.ellipse(x - 26 * scale, y + 4 * scale, 24 * scale, 10 * scale, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + 2 * scale, y - 9 * scale, 22 * scale, 12 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   function drawField(horizon, top, bottom) {
     const h = canvas.height;
     const ground = ctx.createLinearGradient(0, horizon, 0, h);
@@ -789,6 +816,16 @@ function initAirplaneShooter() {
     ground.addColorStop(1, bottom);
     ctx.fillStyle = ground;
     ctx.fillRect(0, horizon, canvas.width, h - horizon);
+
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 7; i += 1) {
+      const y = horizon + ((i * 82 + state.distance * 9) % (h - horizon));
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.bezierCurveTo(canvas.width * 0.25, y + 24, canvas.width * 0.65, y - 18, canvas.width, y + 10);
+      ctx.stroke();
+    }
   }
 
   function drawWater(horizon) {
@@ -799,6 +836,7 @@ function initAirplaneShooter() {
     ctx.fillStyle = water;
     ctx.fillRect(0, horizon, canvas.width, h - horizon);
     ctx.strokeStyle = "rgba(255,255,255,0.28)";
+    ctx.lineWidth = 2;
     for (let i = 0; i < 10; i += 1) {
       const y = horizon + ((i * 56 + state.distance * 10) % (h - horizon));
       ctx.beginPath();
@@ -806,10 +844,16 @@ function initAirplaneShooter() {
       ctx.quadraticCurveTo(canvas.width * 0.5, y + 14, canvas.width - 30, y);
       ctx.stroke();
     }
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    for (let i = 0; i < 16; i += 1) {
+      const x = (i * 73 + state.distance * 11) % canvas.width;
+      const y = horizon + 40 + ((i * 41 + state.distance * 14) % (h - horizon - 40));
+      ctx.fillRect(x, y, 34, 3);
+    }
   }
 
   function drawMountains(horizon) {
-    ctx.fillStyle = "#65716a";
+    ctx.fillStyle = "#536563";
     ctx.beginPath();
     ctx.moveTo(0, horizon);
     ctx.lineTo(70, horizon - 70);
@@ -818,6 +862,26 @@ function initAirplaneShooter() {
     ctx.lineTo(335, horizon);
     ctx.lineTo(430, horizon - 65);
     ctx.lineTo(canvas.width, horizon);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#8f9c8d";
+    ctx.beginPath();
+    ctx.moveTo(70, horizon - 70);
+    ctx.lineTo(50, horizon - 25);
+    ctx.lineTo(91, horizon - 27);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(235, horizon - 95);
+    ctx.lineTo(205, horizon - 30);
+    ctx.lineTo(268, horizon - 34);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(430, horizon - 65);
+    ctx.lineTo(405, horizon - 22);
+    ctx.lineTo(458, horizon - 24);
     ctx.closePath();
     ctx.fill();
   }
@@ -830,6 +894,11 @@ function initAirplaneShooter() {
       ctx.moveTo(x, horizon);
       ctx.lineTo(x - 120, canvas.height);
       ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(120, 82, 39, 0.26)";
+    for (let i = 0; i < 10; i += 1) {
+      const y = horizon + ((i * 70 + state.distance * 12) % (canvas.height - horizon));
+      ctx.fillRect(0, y, canvas.width, 12);
     }
   }
 
@@ -852,6 +921,15 @@ function initAirplaneShooter() {
     ctx.lineTo(w * 0.24, h);
     ctx.closePath();
     ctx.fill();
+
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(w * 0.31, h);
+    ctx.lineTo(w * 0.47, horizon);
+    ctx.moveTo(w * 0.69, h);
+    ctx.lineTo(w * 0.53, horizon);
+    ctx.stroke();
 
     ctx.strokeStyle = "#f9f5d7";
     ctx.lineWidth = 5;
@@ -929,6 +1007,17 @@ function initAirplaneShooter() {
       ctx.moveTo(0, y);
       ctx.lineTo(w, y + 14);
       ctx.stroke();
+    }
+
+    ctx.fillStyle = "rgba(24, 72, 45, 0.18)";
+    for (let i = 0; i < 12; i += 1) {
+      const near = ((i * 0.17 + state.distance * 0.012) % 1);
+      const y = horizon + Math.pow(near, 1.4) * (h - horizon);
+      const x = (i * 97 + state.distance * 23) % w;
+      const size = 3 + near * 16;
+      ctx.beginPath();
+      ctx.ellipse(x, y, size * 1.8, size, 0, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -1161,10 +1250,20 @@ function initAirplaneShooter() {
     state.bursts.forEach((burst) => {
       const point = worldToScreen(burst.x, burst.depth);
       const radius = (12 + burst.age * 58) * point.scale;
-      ctx.fillStyle = `rgba(255, 190, 71, ${Math.max(0, 1 - burst.age * 2)})`;
+      ctx.fillStyle = `rgba(255, 226, 102, ${Math.max(0, 1 - burst.age * 2.2)})`;
       ctx.beginPath();
       ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
       ctx.fill();
+      ctx.fillStyle = `rgba(222, 70, 44, ${Math.max(0, 0.9 - burst.age * 1.8)})`;
+      ctx.beginPath();
+      ctx.arc(point.x + radius * 0.28, point.y - radius * 0.16, radius * 0.48, 0, Math.PI * 2);
+      ctx.arc(point.x - radius * 0.24, point.y + radius * 0.18, radius * 0.38, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(45, 47, 48, ${Math.max(0, 0.55 - burst.age)})`;
+      ctx.lineWidth = Math.max(2, 5 * point.scale);
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, radius * 1.25, 0, Math.PI * 2);
+      ctx.stroke();
     });
   }
 
@@ -1194,10 +1293,16 @@ function initAirplaneShooter() {
       crashed: true
     });
     ctx.strokeStyle = "rgba(50,50,50,0.45)";
-    ctx.lineWidth = 6;
+    ctx.lineWidth = 7;
     ctx.beginPath();
     ctx.moveTo(x - 20, y - 20);
     ctx.quadraticCurveTo(x - 50, y - 55, x - 80, y - 70);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(30,30,30,0.22)";
+    ctx.lineWidth = 13;
+    ctx.beginPath();
+    ctx.moveTo(x - 6, y - 8);
+    ctx.quadraticCurveTo(x - 36, y - 38, x - 70, y - 46);
     ctx.stroke();
   }
 
