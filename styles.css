@@ -434,6 +434,10 @@ select {
   margin: 0 auto;
 }
 
+.air-game[data-layout="landscape"] .canvas-wrap {
+  width: min(100%, 920px);
+}
+
 .flight-canvas {
   display: block;
   width: 100%;
@@ -443,6 +447,31 @@ select {
   background: #7fc7ff;
   box-shadow: 0 14px 38px rgba(25, 49, 47, 0.2);
   touch-action: none;
+}
+
+.air-game[data-layout="landscape"] .flight-canvas {
+  aspect-ratio: 16 / 9;
+}
+
+.air-game[data-layout="landscape"] .left-pad {
+  width: min(32%, 210px);
+}
+
+.air-game[data-layout="landscape"] .right-pad {
+  width: min(30%, 190px);
+}
+
+.air-game[data-layout="landscape"] .game-message {
+  left: 50%;
+  top: 50px;
+  right: auto;
+  bottom: auto;
+  width: min(42%, 360px);
+  transform: translateX(-50%);
+}
+
+.air-game[data-layout="landscape"] .game-message.is-visible {
+  transform: translateX(-50%) translateY(0);
 }
 
 .flight-controls {
@@ -791,32 +820,50 @@ select {
     display: block;
   }
 
-  .air-game[data-layout="landscape"] .canvas-wrap {
-    width: min(100%, 920px);
-  }
-
-  .air-game[data-layout="landscape"] .flight-canvas {
-    aspect-ratio: 16 / 9;
-  }
-
-  .air-game[data-layout="landscape"] .left-pad {
-    width: min(30%, 210px);
-  }
-
-  .air-game[data-layout="landscape"] .right-pad {
-    width: min(26%, 190px);
-  }
-
   .air-game[data-layout="landscape"] .game-message {
-    left: 50%;
-    top: 50px;
-    right: auto;
-    bottom: auto;
     width: min(36%, 360px);
-    transform: translateX(-50%);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .app-frame {
+    width: 100%;
+    padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
   }
 
-  .air-game[data-layout="landscape"] .game-message.is-visible {
-    transform: translateX(-50%) translateY(0);
+  .top-bar {
+    padding: 2px 0 6px;
+  }
+
+  .top-bar h1 {
+    font-size: 1.35rem;
+  }
+
+  .eyebrow {
+    display: none;
+  }
+
+  .status-pill {
+    min-height: 28px;
+    padding: 5px 9px;
+    font-size: 0.78rem;
+  }
+
+  .game-panel {
+    padding: 8px;
+  }
+
+  .game-header,
+  .layout-toggle {
+    margin-bottom: 8px;
+  }
+
+  .game-header .intro {
+    display: none;
+  }
+
+  .game-header h2 {
+    margin-bottom: 0;
+    font-size: 1.25rem;
   }
 }

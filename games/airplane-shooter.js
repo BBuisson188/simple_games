@@ -39,8 +39,8 @@ const stages = [
     enemySpeed: 0.16,
     enemyCount: 8,
     stageBonus: 500,
-    fastTime: 48,
-    slowTime: 102,
+    fastTime: 34,
+    slowTime: 58,
     timeBonus: 1200
   },
   {
@@ -50,8 +50,8 @@ const stages = [
     enemySpeed: 0.2,
     enemyCount: 10,
     stageBonus: 800,
-    fastTime: 45,
-    slowTime: 96,
+    fastTime: 32,
+    slowTime: 55,
     timeBonus: 1600
   },
   {
@@ -61,8 +61,8 @@ const stages = [
     enemySpeed: 0.24,
     enemyCount: 12,
     stageBonus: 1200,
-    fastTime: 42,
-    slowTime: 90,
+    fastTime: 30,
+    slowTime: 52,
     timeBonus: 2200
   },
   {
@@ -72,8 +72,8 @@ const stages = [
     enemySpeed: 0.3,
     enemyCount: 14,
     stageBonus: 1800,
-    fastTime: 39,
-    slowTime: 84,
+    fastTime: 28,
+    slowTime: 49,
     timeBonus: 3000
   }
 ];
