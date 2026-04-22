@@ -3,7 +3,7 @@ import { renderAirplaneShooter } from "./games/airplane-shooter.js";
 import { renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
 import { renderPlaceholder } from "./games/placeholders.js";
 
-const APP_VERSION = "v43";
+const APP_VERSION = "v46";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
 
@@ -12,18 +12,21 @@ const games = [
     id: "mad-libs",
     title: "Mad Libs",
     subtitle: "Make a silly story",
+    graphic: "./assets/menu/mad-libs.jpg",
     render: renderMadLibs
   },
   {
     id: "airplane-shooter",
     title: "Airplane Shooter",
     subtitle: "Runway takeoff arcade",
+    graphic: "./assets/menu/airplane-shooter.jpg",
     render: renderAirplaneShooter
   },
   {
     id: "starfighter-arena",
     title: "Starfighter Arena",
     subtitle: "Sinistar-style space battle",
+    graphic: "./assets/menu/starfighter.jpg",
     render: renderStarfighterSinistar
   },
   {
@@ -42,6 +45,7 @@ function setScreen(html) {
 function renderMenu() {
   const buttons = games.map((game) => `
     <button class="menu-button" type="button" data-game="${game.id}">
+      ${game.graphic ? `<img class="menu-graphic" src="${game.graphic}" alt="" aria-hidden="true">` : `<span class="menu-graphic menu-graphic-placeholder" aria-hidden="true">?</span>`}
       <span>
         <strong>${game.title}</strong>
         <span>${game.subtitle}</span>

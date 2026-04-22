@@ -132,7 +132,7 @@ h3 {
 .menu-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 12px;
+  gap: 16px;
   margin-top: 22px;
 }
 
@@ -147,16 +147,43 @@ h3 {
 }
 
 .menu-button {
+  position: relative;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
   width: 100%;
-  padding: 18px;
+  overflow: hidden;
+  padding: 0;
   background: #ffffff;
   color: var(--ink);
   border: 1px solid var(--line);
   text-align: left;
+}
+
+.menu-graphic {
+  display: block;
+  width: 100%;
+  aspect-ratio: 8 / 5;
+  border: 0;
+  border-bottom: 1px solid rgba(25, 49, 47, 0.12);
+  border-radius: 0;
+  object-fit: cover;
+  background: #eef6f3;
+}
+
+.menu-graphic-placeholder {
+  display: grid;
+  place-items: center;
+  color: rgba(25, 49, 47, 0.38);
+  font-size: 2rem;
+  font-weight: 900;
+}
+
+.menu-button > span:not(.menu-graphic-placeholder) {
+  display: block;
+  min-width: 0;
+  padding: 14px 46px 16px 16px;
 }
 
 .menu-button strong {
@@ -173,6 +200,9 @@ h3 {
 
 .menu-button::after {
   content: ">";
+  position: absolute;
+  right: 18px;
+  bottom: 20px;
   color: var(--brand);
   font-size: 1.4rem;
 }

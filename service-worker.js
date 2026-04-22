@@ -1,4 +1,4 @@
-const CACHE_NAME = "mini-games-v43";
+const CACHE_NAME = "mini-games-v46";
 
 const APP_ASSETS = [
   "./",
@@ -15,7 +15,10 @@ const APP_ASSETS = [
   "./assets/icons/app-icon-192.png",
   "./assets/icons/app-icon-512.png",
   "./assets/icons/app-icon.svg",
-  "./assets/icons/biplane-front.svg"
+  "./assets/icons/biplane-front.svg",
+  "./assets/menu/mad-libs.jpg",
+  "./assets/menu/airplane-shooter.jpg",
+  "./assets/menu/starfighter.jpg"
 ];
 
 self.addEventListener("install", (event) => {
