@@ -885,9 +885,42 @@ select {
 }
 
 .star-select,
-.starship-choice-grid {
+.starship-choice-grid,
+.star-difficulty,
+.star-difficulty-grid {
   display: grid;
   gap: 14px;
+}
+
+.star-difficulty-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.star-difficulty-choice {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  min-height: 64px;
+  padding: 8px;
+  border: 2px solid rgba(139, 166, 195, 0.46);
+  border-radius: 8px;
+  background: #101a2d;
+  color: #eef6ff;
+}
+
+.star-difficulty-choice.is-selected {
+  border-color: #ffce62;
+  background: #18233a;
+}
+
+.star-difficulty-choice strong {
+  font-size: 1.25rem;
+}
+
+.star-difficulty-choice span,
+.star-test-note {
+  color: #aebdca;
+  font-weight: 800;
 }
 
 .starship-choice {

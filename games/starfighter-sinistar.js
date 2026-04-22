@@ -9,6 +9,13 @@ const stages = [
   { name: "Death Star Run", bossName: "Death Star", bossType: "deathstar", killsNeeded: 16, enemyRate: 0.78, enemySpeed: 102, asteroidCount: 18, lockOn: false, respawnAfterKill: 1.15, noKillReinforcement: 3.4 }
 ];
 
+const difficulties = {
+  0: { name: "0", label: "Test", enemyFire: false, bossFire: false, speed: 0.82, enemyRate: 1.2, respawn: 1.15, reinforcement: 1.2, fireRate: 1 },
+  1: { name: "1", label: "Normal", enemyFire: true, bossFire: true, speed: 1, enemyRate: 1, respawn: 1, reinforcement: 1, fireRate: 1 },
+  2: { name: "2", label: "Veteran", enemyFire: true, bossFire: true, speed: 1.08, enemyRate: 0.9, respawn: 0.88, reinforcement: 0.9, fireRate: 0.88 },
+  3: { name: "3", label: "Ace", enemyFire: true, bossFire: true, speed: 1.18, enemyRate: 0.78, respawn: 0.74, reinforcement: 0.76, fireRate: 0.74 }
+};
+
 const WORLD = { width: 900, height: 560 };
 const PLAYER_LASER_SPEED = 520;
 const ENEMY_LASER_SPEED = 260;
@@ -16,6 +23,11 @@ const TORPEDO_SPEED = 520;
 const MAX_ALLOWED_HITS = 6;
 const STARTING_ENEMY_LIMIT = 3;
 const LEADERBOARD_KEY = "miniGames.starfighterArenaLeaderboard";
+const LEADERBOARD_KEY_BY_DIFFICULTY = {
+  1: LEADERBOARD_KEY,
+  2: `${LEADERBOARD_KEY}.difficulty2`,
+  3: `${LEADERBOARD_KEY}.difficulty3`
+};
 const COUNTDOWN_TIME = 3.8;
 const EXPLOSION_SEQUENCE_TIME = 3.6;
 let currentStarfighterGame = null;
@@ -27,6 +39,15 @@ function renderShipButtons() {
       <canvas class="starship-preview" width="130" height="82" data-starship-preview="${id}" aria-hidden="true"></canvas>
       <strong>${ship.name}</strong>
       <span>${ship.note}</span>
+    </button>
+  `).join("");
+}
+
+function renderDifficultyButtons() {
+  return Object.entries(difficulties).map(([id, difficulty]) => `
+    <button class="star-difficulty-choice ${id === "1" ? "is-selected" : ""}" type="button" data-star-difficulty="${id}">
+      <strong>${difficulty.name}</strong>
+      <span>${difficulty.label}</span>
     </button>
   `).join("");
 }
@@ -43,6 +64,10 @@ export function renderStarfighterSinistar() {
         <div class="game-overlay" hidden data-star-overlay></div>
         <div class="game-header"><div><h2>Starfighter Arena</h2><p class="intro">Choose a ship, blast TIE fighters and asteroids, then land one Proton Torpedo on the boss.</p></div></div>
         <div class="star-select" data-star-select>
+          <div class="star-difficulty" aria-label="Difficulty">
+            <h3>Difficulty</h3>
+            <div class="star-difficulty-grid">${renderDifficultyButtons()}</div>
+          </div>
           <h3>Choose your ship</h3>
           <div class="starship-choice-grid">${renderShipButtons()}</div>
           <button class="primary-button" type="button" data-start-stars>Launch</button>
@@ -91,9 +116,10 @@ function initStarfighterSinistar() {
   const joystick = root.querySelector("[data-star-joystick]");
   const knob = root.querySelector("[data-star-knob]");
   const shipButtons = [...root.querySelectorAll("[data-starship-choice]")];
+  const difficultyButtons = [...root.querySelectorAll("[data-star-difficulty]")];
   const input = { x: 0, y: 0, active: false, pointerId: null, fire: false, firePointerId: null, keys: new Set() };
   const state = {
-    running: false, mode: "select", selectedShip: "xwing", level: 0, score: 0, hits: 0, kills: 0,
+    running: false, mode: "select", selectedShip: "xwing", difficulty: 1, level: 0, score: 0, hits: 0, kills: 0,
     player: null, enemies: [], asteroids: [], playerLasers: [], enemyLasers: [], torpedo: null,
     bursts: [], stars: [], boss: null, torpedoAvailable: false, torpedoFired: false,
     spawnTimer: 0, enemyLimit: STARTING_ENEMY_LIMIT, noKillTimer: 0, laserCooldown: 0,
@@ -102,11 +128,21 @@ function initStarfighterSinistar() {
   };
   const stage = () => stages[state.level];
   const ship = () => ships[state.selectedShip];
+  const difficulty = () => difficulties[state.difficulty] || difficulties[1];
 
   function chooseShip(shipId) {
     state.selectedShip = shipId;
     root.dataset.selectedShip = shipId;
     shipButtons.forEach((button) => button.classList.toggle("is-selected", button.dataset.starshipChoice === shipId));
+  }
+
+  function chooseDifficulty(value) {
+    state.difficulty = Number(value);
+    difficultyButtons.forEach((button) => button.classList.toggle("is-selected", Number(button.dataset.starDifficulty) === state.difficulty));
+  }
+
+  function leaderboardKey() {
+    return LEADERBOARD_KEY_BY_DIFFICULTY[state.difficulty] || null;
   }
 
   function setMessage(title, detail, hold = 2.2) {
@@ -231,7 +267,7 @@ function initStarfighterSinistar() {
   function spawnEnemy() {
     const edge = randomEdgePoint();
     const angle = Math.atan2(state.player.y - edge.y, state.player.x - edge.x);
-    state.enemies.push({ x: edge.x, y: edge.y, vx: 0, vy: 0, angle, radius: 16, fireTimer: rand(1.1, 2.25), wobble: Math.random() * Math.PI * 2 });
+    state.enemies.push({ x: edge.x, y: edge.y, vx: 0, vy: 0, angle, radius: 16, fireTimer: rand(1.1, 2.25) * difficulty().fireRate, wobble: Math.random() * Math.PI * 2 });
   }
 
   function spawnBoss() {
@@ -318,7 +354,7 @@ function initStarfighterSinistar() {
     state.boss = null;
     state.explosionTarget = null;
     if (state.level >= stages.length - 1) {
-      setOverlay("Death Star Destroyed", renderFinalScoreForm("Final score", state.score), `<button class="primary-button" type="button" data-star-save-score>Save Score</button><button class="secondary-button" type="button" data-star-restart>Play Again</button>`);
+      setOverlay("Death Star Destroyed", renderFinalScoreForm("Final score", state.score), renderScoreButtons(`<button class="secondary-button" type="button" data-star-restart>Play Again</button>`));
     } else {
       setOverlay("Level Complete", `<p>${stage().bossName} destroyed.</p><p>Score: <strong>${state.score}</strong></p>`, `<button class="primary-button" type="button" data-star-next>Next Level</button>`);
     }
@@ -344,7 +380,7 @@ function initStarfighterSinistar() {
     state.mode = "gameOver";
     state.running = false;
     updateHud();
-    setOverlay(title, `<p>${detail}</p><p>TIE kills: <strong>${state.kills}</strong></p>${renderFinalScoreForm("Final score", state.score)}`, `<button class="primary-button" type="button" data-star-save-score>Save Score</button><button class="secondary-button" type="button" data-star-restart>Play Again</button><button class="secondary-button" type="button" data-star-select-again>Choose Ship</button>`);
+    setOverlay(title, `<p>${detail}</p><p>TIE kills: <strong>${state.kills}</strong></p>${renderFinalScoreForm("Final score", state.score)}`, renderScoreButtons(`<button class="secondary-button" type="button" data-star-restart>Play Again</button><button class="secondary-button" type="button" data-star-select-again>Choose Ship</button>`));
   }
 
   function renderFinalScoreForm(label, total) {
@@ -359,9 +395,17 @@ function initStarfighterSinistar() {
     `;
   }
 
+  function renderScoreButtons(extraButtons) {
+    const saveButton = state.difficulty === 0 ? "" : `<button class="primary-button" type="button" data-star-save-score>Save Score</button>`;
+    const testNote = state.difficulty === 0 ? `<p class="star-test-note">Difficulty 0 is test mode, so scores are not saved.</p>` : "";
+    return `${testNote}${saveButton}${extraButtons}`;
+  }
+
   function getLeaderboard() {
+    const key = leaderboardKey();
+    if (!key) return [];
     try {
-      const saved = JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || "[]");
+      const saved = JSON.parse(localStorage.getItem(key) || "[]");
       return Array.isArray(saved) ? saved : [];
     } catch {
       return [];
@@ -369,10 +413,15 @@ function initStarfighterSinistar() {
   }
 
   function saveLeaderboard(entries) {
-    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries.slice(0, 10)));
+    const key = leaderboardKey();
+    if (key) localStorage.setItem(key, JSON.stringify(entries.slice(0, 10)));
   }
 
   function saveScoreFromOverlay() {
+    if (state.difficulty === 0) {
+      showLeaderboard("Test Mode");
+      return;
+    }
     const nameInput = overlayEl.querySelector("[data-player-name]");
     const name = String(nameInput?.value || "Ace").trim() || "Ace";
     const entries = getLeaderboard();
@@ -381,6 +430,7 @@ function initStarfighterSinistar() {
       score: state.score,
       level: state.level + 1,
       kills: state.kills,
+      difficulty: state.difficulty,
       ship: ship().name,
       createdAt: new Date().toISOString()
     });
@@ -397,6 +447,14 @@ function initStarfighterSinistar() {
       input.fire = false;
       resetJoystick();
     }
+    if (state.difficulty === 0) {
+      setOverlay(
+        title,
+        `<p>Difficulty 0 is test mode, so it does not save scores.</p>`,
+        `<button class="primary-button" type="button" data-star-select-again>Play Again</button><button class="secondary-button" type="button" data-star-close-overlay>Close</button>`
+      );
+      return;
+    }
     const entries = getLeaderboard();
     const rows = entries.length
       ? entries.map((entry, index) => `
@@ -409,7 +467,7 @@ function initStarfighterSinistar() {
       `).join("")
       : `<tr><td colspan="4">No scores yet.</td></tr>`;
     setOverlay(
-      title,
+      `${title}: Difficulty ${state.difficulty}`,
       `<table class="leaderboard-table"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Kills</th></tr></thead><tbody>${rows}</tbody></table>`,
       `<button class="primary-button" type="button" data-star-select-again>Play Again</button><button class="secondary-button" type="button" data-star-close-overlay>Close</button>`
     );
@@ -499,7 +557,7 @@ function initStarfighterSinistar() {
 
   function updateEnemyReinforcements(dt) {
     state.noKillTimer += dt;
-    if (state.noKillTimer >= stage().noKillReinforcement) {
+    if (state.noKillTimer >= stage().noKillReinforcement * difficulty().reinforcement) {
       state.enemyLimit += 1;
       state.noKillTimer = 0;
       state.spawnTimer = 0;
@@ -511,7 +569,7 @@ function initStarfighterSinistar() {
     while (state.enemies.length < state.enemyLimit && state.kills < stage().killsNeeded) {
       spawnEnemy();
     }
-    state.spawnTimer = stage().enemyRate;
+    state.spawnTimer = stage().enemyRate * difficulty().enemyRate;
   }
 
   function updateStars() {
@@ -554,14 +612,14 @@ function initStarfighterSinistar() {
       const targetAngle = Math.atan2(state.player.y - enemy.y, state.player.x - enemy.x);
       enemy.wobble += dt * 3.2;
       enemy.angle += shortAngle(enemy.angle, targetAngle + Math.sin(enemy.wobble) * 0.35) * dt * 1.8;
-      enemy.vx = Math.cos(enemy.angle) * stage().enemySpeed;
-      enemy.vy = Math.sin(enemy.angle) * stage().enemySpeed;
+      enemy.vx = Math.cos(enemy.angle) * stage().enemySpeed * difficulty().speed;
+      enemy.vy = Math.sin(enemy.angle) * stage().enemySpeed * difficulty().speed;
       enemy.x += enemy.vx * dt;
       enemy.y += enemy.vy * dt;
       enemy.fireTimer -= dt;
-      if (enemy.fireTimer <= 0 && distance(enemy, state.player) < 430) {
+      if (difficulty().enemyFire && enemy.fireTimer <= 0 && distance(enemy, state.player) < 430) {
         fireEnemyLaser(enemy, 0.22);
-        enemy.fireTimer = rand(1.4, 2.6);
+        enemy.fireTimer = rand(1.4, 2.6) * difficulty().fireRate;
       }
     });
     state.enemies = state.enemies.filter((enemy) => !enemy.dead && inBounds(enemy, 80));
@@ -572,11 +630,11 @@ function initStarfighterSinistar() {
     if (state.boss.x > WORLD.width - 130) state.boss.x += state.boss.vx * dt;
     else state.boss.y += Math.sin(performance.now() / 760) * 16 * dt;
     state.boss.angle = Math.atan2(state.player.y - state.boss.y, state.player.x - state.boss.x);
-    if (state.mode === "boss") {
+    if (state.mode === "boss" && difficulty().bossFire) {
       state.bossLaserTimer -= dt;
       if (state.bossLaserTimer <= 0) {
         for (let i = 0; i < 3; i += 1) fireBossLaser(i - 1);
-        state.bossLaserTimer = rand(1, 1.7);
+        state.bossLaserTimer = rand(1, 1.7) * difficulty().fireRate;
       }
     }
   }
@@ -628,7 +686,7 @@ function initStarfighterSinistar() {
           laser.life = 0;
           state.kills += 1;
           state.noKillTimer = 0;
-          state.spawnTimer = stage().respawnAfterKill;
+          state.spawnTimer = stage().respawnAfterKill * difficulty().respawn;
           state.score += 150;
           addBurst(enemy.x, enemy.y, "#9be7ff", 16);
           playSound("boom");
@@ -934,26 +992,20 @@ function initStarfighterSinistar() {
   function drawDestroyerSuperlaser(progress) {
     const tip = bossMuzzlePoint(state.boss, 0.86);
     const side = perpendicular(state.boss.angle);
-    const baseDistance = state.boss.radius * 0.72;
-    const gatherDistance = state.boss.radius * 0.18;
+    const rearDistance = state.boss.radius * 0.72;
     const chargeAlpha = 0.35 + progress * 0.55;
     ctx.save();
     ctx.lineCap = "round";
     ctx.globalAlpha = chargeAlpha;
-    [-38, -14, 14, 38].forEach((offset, index) => {
+    [-54, -24, 24, 54].forEach((offset, index) => {
       const start = {
-        x: state.boss.x + Math.cos(state.boss.angle) * baseDistance + side.x * offset,
-        y: state.boss.y + Math.sin(state.boss.angle) * baseDistance + side.y * offset
-      };
-      const gather = {
-        x: state.boss.x + Math.cos(state.boss.angle) * gatherDistance + side.x * offset * (0.12 + progress * 0.08),
-        y: state.boss.y + Math.sin(state.boss.angle) * gatherDistance + side.y * offset * (0.12 + progress * 0.08)
+        x: state.boss.x - Math.cos(state.boss.angle) * rearDistance + side.x * offset,
+        y: state.boss.y - Math.sin(state.boss.angle) * rearDistance + side.y * offset
       };
       ctx.strokeStyle = index % 2 ? "#baffc4" : "#58ff73";
       ctx.lineWidth = 2 + progress * 2;
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
-      ctx.lineTo(gather.x, gather.y);
       ctx.lineTo(tip.x, tip.y);
       ctx.stroke();
     });
@@ -976,13 +1028,13 @@ function initStarfighterSinistar() {
     const dish = deathStarDishPoint(state.boss);
     const playerAngle = Math.atan2(state.player.y - dish.y, state.player.x - dish.x);
     const converge = {
-      x: dish.x + Math.cos(playerAngle) * (30 + progress * 18),
-      y: dish.y + Math.sin(playerAngle) * (30 + progress * 18)
+      x: dish.x + Math.cos(playerAngle) * (48 + progress * 22),
+      y: dish.y + Math.sin(playerAngle) * (48 + progress * 22)
     };
-    const ring = 20;
-    const beams = [-Math.PI * 0.58, 0, Math.PI * 0.58].map((offset) => ({
-      x: dish.x + Math.cos(playerAngle + Math.PI + offset) * ring,
-      y: dish.y + Math.sin(playerAngle + Math.PI + offset) * ring
+    const ring = 18;
+    const beams = [-Math.PI * 0.66, 0, Math.PI * 0.66].map((offset) => ({
+      x: dish.x + Math.cos(playerAngle + offset) * ring,
+      y: dish.y + Math.sin(playerAngle + offset) * ring
     }));
     ctx.save();
     ctx.lineCap = "round";
@@ -1020,6 +1072,11 @@ function initStarfighterSinistar() {
   }
 
   function runButtonCommand(target) {
+    const difficultyButton = target.closest("[data-star-difficulty]");
+    if (difficultyButton) {
+      chooseDifficulty(difficultyButton.dataset.starDifficulty);
+      return true;
+    }
     const shipButton = target.closest("[data-starship-choice]");
     if (shipButton) {
       chooseShip(shipButton.dataset.starshipChoice);
