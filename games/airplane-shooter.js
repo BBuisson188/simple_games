@@ -449,19 +449,22 @@ function initAirplaneShooter() {
     const nameInput = overlayEl.querySelector("[data-player-name]");
     const name = String(nameInput?.value || "Ace").trim() || "Ace";
     const entries = getLeaderboard();
-    entries.push({
+    const newEntry = {
+      id: `score-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       name: name.slice(0, 16),
       score: state.score,
       stage: state.selectedStage + 1,
       enemiesShot: state.enemiesShot,
       createdAt: new Date().toISOString()
-    });
+    };
+    entries.push(newEntry);
     entries.sort((a, b) => b.score - a.score);
+    const rank = entries.findIndex((entry) => entry.id === newEntry.id) + 1;
     saveLeaderboard(entries);
-    showLeaderboard("Score Saved");
+    showLeaderboard("Score Saved", { highlightId: newEntry.id, recentEntry: newEntry, rank });
   }
 
-  function showLeaderboard(title = "Leaderboard") {
+  function showLeaderboard(title = "Leaderboard", options = {}) {
     if (["takeoff", "flying", "finishing", "crashing"].includes(state.mode)) {
       state.pausedMode = state.mode;
       state.mode = "paused";
@@ -471,27 +474,52 @@ function initAirplaneShooter() {
     }
 
     const entries = getLeaderboard();
+    const highlightId = options.highlightId || null;
     const rows = entries.length
       ? entries.map((entry, index) => `
-        <tr>
+        <tr class="${entry.id === highlightId ? "is-new-score" : ""}">
           <td>${index + 1}</td>
-          <td>${escapeHtml(entry.name)}</td>
+          <td>${escapeHtml(entry.name)}${entry.id === highlightId ? ` <span class="new-score-badge">NEW</span>` : ""}</td>
           <td>${entry.score}</td>
           <td>${entry.stage}</td>
         </tr>
       `).join("")
       : `<tr><td colspan="4">No scores yet.</td></tr>`;
+    const extraRow = options.recentEntry && !entries.some((entry) => entry.id === options.recentEntry.id)
+      ? `
+        <tr class="score-divider"><td colspan="4"></td></tr>
+        <tr class="is-new-score">
+          <td>Rank ${options.rank}</td>
+          <td>Your score <span class="new-score-badge">NEW</span></td>
+          <td>${options.recentEntry.score}</td>
+          <td>${options.recentEntry.stage}</td>
+        </tr>
+      `
+      : "";
 
     setOverlay(
       title,
       `
         <table class="leaderboard-table">
           <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Stage</th></tr></thead>
-          <tbody>${rows}</tbody>
+          <tbody>${rows}${extraRow}</tbody>
         </table>
       `,
-      `<button class="primary-button" type="button" data-close-overlay>Close</button>`
+      `<button class="primary-button" type="button" data-close-overlay>Close</button><button class="secondary-button danger-button" type="button" data-reset-leaderboard>Reset</button>`
     );
+  }
+
+  function confirmResetLeaderboard() {
+    setOverlay(
+      "Reset Leaderboard?",
+      "<p>This clears only the Airplane Shooter leaderboard on this device.</p>",
+      `<button class="primary-button danger-button" type="button" data-confirm-reset>Reset Scores</button><button class="secondary-button" type="button" data-show-leaderboard>Cancel</button>`
+    );
+  }
+
+  function resetLeaderboard() {
+    localStorage.removeItem(LEADERBOARD_KEY);
+    showLeaderboard("Leaderboard Reset");
   }
 
   function escapeHtml(value) {
@@ -1077,110 +1105,218 @@ function initAirplaneShooter() {
   }
 
   function drawBiplane(plane, isEnemy, propMoving, spin) {
-    const body = isEnemy ? "#b94a48" : "#e44d3a";
-    const wing = isEnemy ? "#d7b66a" : "#f2c14e";
-    const stripe = isEnemy ? "#f8e7a3" : "#fff4b0";
-    const cockpit = "#87c6eb";
-    const trim = "#233142";
-    const tire = "#222";
+    const body = isEnemy ? "#b94a48" : "#f2331e";
+    const wing = isEnemy ? "#d7b66a" : "#f6c21a";
+    const stripe = isEnemy ? "#f8e7a3" : "#f2f2f2";
+    const cockpit = "#5b95d9";
+    const trim = "#000";
+    const strut = "#2f2f2f";
+    const tire = "#5c5c5c";
 
-    roundRect(-46, 6, 92, 12, 6);
-    ctx.fillStyle = wing;
-    ctx.fill();
+    ctx.save();
+    ctx.scale(0.28, 0.28);
+    ctx.translate(-256, -245);
     ctx.strokeStyle = trim;
+    ctx.lineWidth = 4;
+
+    // Far nose cap behind the body.
+    ctx.beginPath();
+    ctx.moveTo(236, 74);
+    ctx.quadraticCurveTo(256, 50, 276, 74);
+    ctx.lineTo(272, 92);
+    ctx.quadraticCurveTo(256, 86, 240, 92);
+    ctx.closePath();
+    ctx.fillStyle = "#f2f2f2";
+    ctx.fill();
     ctx.stroke();
 
-    roundRect(-42, -16, 84, 12, 6);
+    ctx.beginPath();
+    ctx.moveTo(243, 73);
+    ctx.quadraticCurveTo(256, 59, 269, 73);
+    ctx.lineTo(267, 82);
+    ctx.quadraticCurveTo(256, 79, 245, 82);
+    ctx.closePath();
+    ctx.fillStyle = "#b98649";
+    ctx.fill();
+    ctx.stroke();
+
+    // Upper wings.
+    ctx.beginPath();
+    ctx.moveTo(56, 130);
+    ctx.quadraticCurveTo(56, 112, 77, 112);
+    ctx.lineTo(215, 112);
+    ctx.quadraticCurveTo(231, 112, 231, 129);
+    ctx.lineTo(231, 136);
+    ctx.quadraticCurveTo(231, 152, 215, 152);
+    ctx.lineTo(77, 152);
+    ctx.quadraticCurveTo(56, 152, 56, 134);
+    ctx.closePath();
     ctx.fillStyle = wing;
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(281, 129);
+    ctx.quadraticCurveTo(281, 112, 297, 112);
+    ctx.lineTo(435, 112);
+    ctx.quadraticCurveTo(456, 112, 456, 130);
+    ctx.lineTo(456, 134);
+    ctx.quadraticCurveTo(456, 152, 435, 152);
+    ctx.lineTo(297, 152);
+    ctx.quadraticCurveTo(281, 152, 281, 136);
+    ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
     ctx.fillStyle = stripe;
-    ctx.fillRect(-8, -16, 16, 12);
-    ctx.fillRect(-8, 6, 16, 12);
+    ctx.fillRect(124, 112, 34, 40);
+    ctx.strokeRect(124, 112, 34, 40);
+    ctx.fillRect(354, 112, 34, 40);
+    ctx.strokeRect(354, 112, 34, 40);
 
-    ctx.strokeStyle = trim;
-    ctx.lineWidth = 3;
+    // Lower wings.
     ctx.beginPath();
-    ctx.moveTo(-18, -4);
-    ctx.lineTo(-12, 6);
-    ctx.moveTo(18, -4);
-    ctx.lineTo(12, 6);
-    ctx.moveTo(-8, -4);
-    ctx.lineTo(-4, 6);
-    ctx.moveTo(8, -4);
-    ctx.lineTo(4, 6);
+    ctx.moveTo(70, 222);
+    ctx.quadraticCurveTo(70, 203, 92, 203);
+    ctx.lineTo(220, 203);
+    ctx.quadraticCurveTo(241, 203, 241, 221);
+    ctx.lineTo(241, 229);
+    ctx.quadraticCurveTo(241, 247, 220, 247);
+    ctx.lineTo(92, 247);
+    ctx.quadraticCurveTo(70, 247, 70, 228);
+    ctx.closePath();
+    ctx.fillStyle = wing;
+    ctx.fill();
     ctx.stroke();
 
-    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(0, -45);
-    ctx.bezierCurveTo(12, -40, 16, -24, 14, 12);
-    ctx.bezierCurveTo(12, 26, 10, 36, 6, 42);
-    ctx.lineTo(0, 46);
-    ctx.lineTo(-6, 42);
-    ctx.bezierCurveTo(-10, 36, -12, 26, -14, 12);
-    ctx.bezierCurveTo(-16, -24, -12, -40, 0, -45);
+    ctx.moveTo(271, 221);
+    ctx.quadraticCurveTo(271, 203, 292, 203);
+    ctx.lineTo(420, 203);
+    ctx.quadraticCurveTo(442, 203, 442, 222);
+    ctx.lineTo(442, 228);
+    ctx.quadraticCurveTo(442, 247, 420, 247);
+    ctx.lineTo(292, 247);
+    ctx.quadraticCurveTo(271, 247, 271, 229);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = stripe;
+    ctx.fillRect(126, 203, 36, 44);
+    ctx.strokeRect(126, 203, 36, 44);
+    ctx.fillRect(350, 203, 36, 44);
+    ctx.strokeRect(350, 203, 36, 44);
+
+    // Interplane struts.
+    ctx.strokeStyle = strut;
+    ctx.lineWidth = 7;
+    [
+      [104, 152, 122, 203],
+      [134, 152, 122, 203],
+      [170, 152, 206, 203],
+      [200, 152, 170, 203],
+      [408, 152, 390, 203],
+      [378, 152, 390, 203],
+      [342, 152, 306, 203],
+      [312, 152, 342, 203]
+    ].forEach(([x1, y1, x2, y2]) => {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    });
+
+    // Fuselage.
+    ctx.strokeStyle = trim;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(227, 90);
+    ctx.bezierCurveTo(237, 86, 247, 84, 256, 84);
+    ctx.bezierCurveTo(265, 84, 275, 86, 285, 90);
+    ctx.lineTo(285, 261);
+    ctx.bezierCurveTo(285, 291, 276, 322, 265, 350);
+    ctx.lineTo(259, 367);
+    ctx.quadraticCurveTo(256, 377, 253, 367);
+    ctx.lineTo(247, 350);
+    ctx.bezierCurveTo(236, 322, 227, 291, 227, 261);
     ctx.closePath();
     ctx.fillStyle = body;
     ctx.fill();
-    ctx.strokeStyle = trim;
     ctx.stroke();
 
-    ctx.fillStyle = stripe;
+    // Canopy.
     ctx.beginPath();
-    ctx.moveTo(-5, -8);
-    ctx.lineTo(5, -8);
-    ctx.lineTo(4, 28);
-    ctx.lineTo(-4, 28);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.ellipse(0, -6, 8, 10, 0, 0, Math.PI * 2);
+    ctx.ellipse(256, 166, 22, 24, 0, 0, Math.PI * 2);
     ctx.fillStyle = cockpit;
     ctx.fill();
-    ctx.strokeStyle = trim;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(256, 166, 28, 30, 0, 0, Math.PI * 2);
     ctx.stroke();
 
-    roundRect(-18, 28, 36, 8, 4);
-    ctx.fillStyle = wing;
+    // Center rear fin.
+    ctx.beginPath();
+    ctx.moveTo(256, 236);
+    ctx.bezierCurveTo(245, 236, 242, 247, 242, 268);
+    ctx.lineTo(242, 345);
+    ctx.bezierCurveTo(242, 359, 247, 374, 256, 391);
+    ctx.bezierCurveTo(265, 374, 270, 359, 270, 345);
+    ctx.lineTo(270, 268);
+    ctx.bezierCurveTo(270, 247, 267, 236, 256, 236);
+    ctx.closePath();
+    ctx.fillStyle = body;
     ctx.fill();
     ctx.stroke();
 
+    // Tailplanes.
     ctx.beginPath();
-    ctx.moveTo(0, 24);
-    ctx.lineTo(0, 42);
-    ctx.lineTo(10, 34);
-    ctx.quadraticCurveTo(6, 26, 0, 24);
+    ctx.moveTo(138, 287);
+    ctx.bezierCurveTo(166, 271, 199, 268, 230, 275);
+    ctx.lineTo(238, 322);
+    ctx.bezierCurveTo(203, 327, 167, 327, 139, 323);
+    ctx.bezierCurveTo(123, 321, 121, 297, 138, 287);
     ctx.closePath();
     ctx.fillStyle = wing;
     ctx.fill();
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(-10, 18);
-    ctx.lineTo(-16, 28);
-    ctx.moveTo(10, 18);
-    ctx.lineTo(16, 28);
-    ctx.strokeStyle = trim;
+    ctx.moveTo(374, 287);
+    ctx.bezierCurveTo(346, 271, 313, 268, 282, 275);
+    ctx.lineTo(274, 322);
+    ctx.bezierCurveTo(309, 327, 345, 327, 373, 323);
+    ctx.bezierCurveTo(389, 321, 391, 297, 374, 287);
+    ctx.closePath();
+    ctx.fill();
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.arc(-18, 31, 4, 0, Math.PI * 2);
-    ctx.arc(18, 31, 4, 0, Math.PI * 2);
+    ctx.moveTo(172, 306);
+    ctx.lineTo(229, 306);
+    ctx.moveTo(283, 306);
+    ctx.lineTo(340, 306);
+    ctx.stroke();
+
+    ctx.strokeStyle = strut;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(256, 391);
+    ctx.lineTo(256, 407);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(256, 416, 8, 0, Math.PI * 2);
     ctx.fillStyle = tire;
     ctx.fill();
-
-    ctx.beginPath();
-    ctx.ellipse(0, -45, 8, 5, 0, 0, Math.PI * 2);
-    ctx.fillStyle = "#f7f7f7";
-    ctx.fill();
     ctx.strokeStyle = trim;
+    ctx.lineWidth = 4;
     ctx.stroke();
 
+    ctx.restore();
+
+    // Keep the propeller animated separately so the SVG-style body can stay crisp.
     ctx.save();
-    ctx.translate(0, -49);
+    ctx.translate(0, -50);
     if (propMoving) {
       ctx.rotate(spin || 0);
       ctx.fillStyle = "rgba(70,70,70,0.18)";
@@ -1209,125 +1345,194 @@ function initAirplaneShooter() {
   }
 
   function drawMustang(plane, isEnemy, propMoving, spin) {
-    const body = isEnemy ? "#7d8c99" : "#aab7c4";
-    const nose = isEnemy ? "#c74b46" : "#d94e41";
-    const accent = isEnemy ? "#f5d77d" : "#ffe08a";
-    const cockpit = "#79bde8";
-    const trim = "#1f2d3a";
+    const body = isEnemy ? "#8f9aa2" : "#d9d9dc";
+    const shadow = isEnemy ? "#4f5056" : "#444";
+    const red = isEnemy ? "#c74b46" : "#f2331e";
+    const yellow = isEnemy ? "#d6b040" : "#f1be1a";
+    const cockpit = isEnemy ? "#6db4df" : "#4fa9ee";
+    const trim = "#000";
+    const panel = "#7a7a7a";
+
+    ctx.save();
+    ctx.scale(0.28, 0.28);
+    ctx.translate(-256, -250);
+    ctx.strokeStyle = trim;
+    ctx.lineWidth = 4;
+
+    // Spinner and checker nose band. The propeller is intentionally animated separately.
+    ctx.beginPath();
+    ctx.moveTo(237, 97);
+    ctx.quadraticCurveTo(256, 64, 275, 97);
+    ctx.lineTo(272, 110);
+    ctx.quadraticCurveTo(256, 105, 240, 110);
+    ctx.closePath();
+    ctx.fillStyle = red;
+    ctx.fill();
+    ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(-52, 4);
-    ctx.lineTo(-18, -2);
-    ctx.lineTo(-8, 10);
-    ctx.lineTo(-34, 18);
-    ctx.quadraticCurveTo(-44, 20, -52, 4);
+    ctx.rect(226, 102, 60, 30);
+    ctx.fillStyle = yellow;
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = red;
+    ctx.fillRect(226, 102, 15, 15);
+    ctx.fillRect(256, 102, 15, 15);
+    ctx.fillRect(241, 117, 15, 15);
+    ctx.fillRect(271, 117, 15, 15);
+
+    // Main wings.
+    ctx.beginPath();
+    ctx.moveTo(38, 196);
+    ctx.quadraticCurveTo(38, 166, 72, 164);
+    ctx.lineTo(210, 154);
+    ctx.quadraticCurveTo(231, 152, 231, 176);
+    ctx.lineTo(231, 258);
+    ctx.quadraticCurveTo(231, 276, 212, 275);
+    ctx.lineTo(74, 252);
+    ctx.quadraticCurveTo(38, 246, 38, 221);
     ctx.closePath();
     ctx.fillStyle = body;
     ctx.fill();
-    ctx.strokeStyle = trim;
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(52, 4);
-    ctx.lineTo(18, -2);
-    ctx.lineTo(8, 10);
-    ctx.lineTo(34, 18);
-    ctx.quadraticCurveTo(44, 20, 52, 4);
+    ctx.moveTo(474, 196);
+    ctx.quadraticCurveTo(474, 166, 440, 164);
+    ctx.lineTo(302, 154);
+    ctx.quadraticCurveTo(281, 152, 281, 176);
+    ctx.lineTo(281, 258);
+    ctx.quadraticCurveTo(281, 276, 300, 275);
+    ctx.lineTo(438, 252);
+    ctx.quadraticCurveTo(474, 246, 474, 221);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
+    ctx.strokeStyle = panel;
+    ctx.lineWidth = 2;
+    [[98, 172, 94, 246], [150, 161, 148, 260], [362, 260, 374, 161], [414, 246, 420, 172], [72, 198, 230, 208], [282, 208, 440, 198]].forEach(([x1, y1, x2, y2]) => {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    });
+
+    ctx.fillStyle = shadow;
+    ctx.fillRect(154, 155, 32, 118);
+    ctx.fillRect(326, 155, 32, 118);
+    ctx.fillStyle = "#f2f2f2";
+    ctx.fillRect(186, 155, 24, 118);
+    ctx.fillRect(302, 155, 24, 118);
+
+    // Fuselage.
+    ctx.strokeStyle = trim;
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(0, -47);
-    ctx.bezierCurveTo(10, -44, 14, -26, 12, 14);
-    ctx.bezierCurveTo(10, 28, 9, 38, 4, 46);
-    ctx.lineTo(0, 48);
-    ctx.lineTo(-4, 46);
-    ctx.bezierCurveTo(-9, 38, -10, 28, -12, 14);
-    ctx.bezierCurveTo(-14, -26, -10, -44, 0, -47);
+    ctx.moveTo(226, 132);
+    ctx.bezierCurveTo(235, 129, 245, 128, 256, 128);
+    ctx.bezierCurveTo(267, 128, 277, 129, 286, 132);
+    ctx.lineTo(289, 270);
+    ctx.bezierCurveTo(289, 311, 278, 355, 266, 395);
+    ctx.lineTo(261, 413);
+    ctx.quadraticCurveTo(256, 426, 251, 413);
+    ctx.lineTo(246, 395);
+    ctx.bezierCurveTo(234, 355, 223, 311, 223, 270);
     ctx.closePath();
     ctx.fillStyle = body;
     ctx.fill();
-    ctx.strokeStyle = trim;
     ctx.stroke();
 
-    ctx.beginPath();
-    ctx.moveTo(-8, -44);
-    ctx.quadraticCurveTo(0, -49, 8, -44);
-    ctx.lineTo(7, -30);
-    ctx.quadraticCurveTo(0, -33, -7, -30);
-    ctx.closePath();
-    ctx.fillStyle = nose;
-    ctx.fill();
+    ctx.fillStyle = shadow;
+    ctx.fillRect(223, 268, 66, 28);
+    ctx.fillStyle = red;
+    ctx.fillRect(246, 295, 20, 118);
 
-    ctx.fillStyle = accent;
+    // Canopy.
     ctx.beginPath();
-    ctx.moveTo(-5, -6);
-    ctx.lineTo(5, -6);
-    ctx.lineTo(3, 26);
-    ctx.lineTo(-3, 26);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(-8, -12);
-    ctx.quadraticCurveTo(-9, -2, -4, 5);
-    ctx.lineTo(4, 5);
-    ctx.quadraticCurveTo(9, -2, 8, -12);
-    ctx.quadraticCurveTo(0, -18, -8, -12);
-    ctx.closePath();
+    ctx.ellipse(256, 198, 17, 30, 0, 0, Math.PI * 2);
     ctx.fillStyle = cockpit;
     ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(239, 198);
+    ctx.quadraticCurveTo(256, 168, 273, 198);
+    ctx.stroke();
+    ctx.strokeStyle = "#8fd0ff";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(256, 170);
+    ctx.lineTo(256, 228);
+    ctx.stroke();
+
+    // Tailplanes.
     ctx.strokeStyle = trim;
-    ctx.stroke();
-
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(-20, 31);
-    ctx.lineTo(-5, 28);
-    ctx.lineTo(-3, 34);
-    ctx.lineTo(-16, 38);
-    ctx.quadraticCurveTo(-22, 38, -20, 31);
+    ctx.moveTo(126, 326);
+    ctx.quadraticCurveTo(126, 295, 158, 300);
+    ctx.lineTo(229, 312);
+    ctx.quadraticCurveTo(246, 315, 246, 333);
+    ctx.lineTo(246, 364);
+    ctx.quadraticCurveTo(246, 377, 230, 378);
+    ctx.lineTo(154, 373);
+    ctx.quadraticCurveTo(126, 371, 126, 346);
     ctx.closePath();
     ctx.fillStyle = body;
     ctx.fill();
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(20, 31);
-    ctx.lineTo(5, 28);
-    ctx.lineTo(3, 34);
-    ctx.lineTo(16, 38);
-    ctx.quadraticCurveTo(22, 38, 20, 31);
+    ctx.moveTo(386, 326);
+    ctx.quadraticCurveTo(386, 295, 354, 300);
+    ctx.lineTo(283, 312);
+    ctx.quadraticCurveTo(266, 315, 266, 333);
+    ctx.lineTo(266, 364);
+    ctx.quadraticCurveTo(266, 377, 282, 378);
+    ctx.lineTo(358, 373);
+    ctx.quadraticCurveTo(386, 371, 386, 346);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    ctx.beginPath();
-    ctx.moveTo(0, 20);
-    ctx.lineTo(0, 44);
-    ctx.lineTo(11, 35);
-    ctx.quadraticCurveTo(8, 23, 0, 20);
-    ctx.closePath();
-    ctx.fillStyle = body;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = "#666";
-    ctx.beginPath();
-    [-22, -17, -12].forEach((y) => {
-      ctx.moveTo(-5.3, y);
-      ctx.arc(-7, y, 1.7, 0, Math.PI * 2);
-      ctx.moveTo(8.7, y);
-      ctx.arc(7, y, 1.7, 0, Math.PI * 2);
+    ctx.strokeStyle = panel;
+    ctx.lineWidth = 2;
+    [[168, 313, 168, 375], [344, 313, 344, 375], [142, 351, 244, 351], [268, 351, 370, 351]].forEach(([x1, y1, x2, y2]) => {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
     });
-    ctx.fill();
 
+    // Star roundel.
+    ctx.fillStyle = "#14379e";
     ctx.beginPath();
-    ctx.ellipse(0, -47, 6, 4, 0, 0, Math.PI * 2);
-    ctx.fillStyle = "#ddd";
+    ctx.arc(108, 202, 22, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = trim;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(74, 195, 68, 14);
+    ctx.beginPath();
+    ctx.moveTo(108, 180);
+    ctx.lineTo(114, 193);
+    ctx.lineTo(128, 194);
+    ctx.lineTo(117, 203);
+    ctx.lineTo(120, 217);
+    ctx.lineTo(108, 209);
+    ctx.lineTo(96, 217);
+    ctx.lineTo(99, 203);
+    ctx.lineTo(88, 194);
+    ctx.lineTo(102, 193);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#14379e";
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(108, 202, 22, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.lineWidth = 4;
+    ctx.strokeRect(74, 195, 68, 14);
+
+    ctx.restore();
 
     ctx.save();
     ctx.translate(0, -50);
@@ -1353,123 +1558,315 @@ function initAirplaneShooter() {
   }
 
   function drawJet(plane, isEnemy) {
-    const body = isEnemy ? "#7b5ea7" : "#5b8def";
-    const wing = isEnemy ? "#5a4a76" : "#3b6fd8";
-    const accent = isEnemy ? "#ffcf70" : "#ffd166";
-    const cockpit = "#92d4ff";
-    const trim = "#1f2940";
+    const body = isEnemy ? "#6f5aa2" : "#5b90c8";
+    const dark = isEnemy ? "#41345f" : "#3d6f9e";
+    const accent = isEnemy ? "#ffcf70" : "#f2c21c";
+    const cockpit = "#58aeef";
+    const trim = "#000";
+    const panel = isEnemy ? "#3d3556" : "#3a628c";
 
-    ctx.beginPath();
-    ctx.moveTo(-55, 12);
-    ctx.lineTo(-12, -2);
-    ctx.lineTo(-6, 11);
-    ctx.lineTo(-34, 30);
-    ctx.quadraticCurveTo(-48, 28, -55, 12);
-    ctx.closePath();
-    ctx.fillStyle = wing;
-    ctx.fill();
+    ctx.save();
+    ctx.scale(0.28, 0.28);
+    ctx.translate(-256, -255);
     ctx.strokeStyle = trim;
-    ctx.stroke();
+    ctx.lineWidth = 4;
 
+    // Fuselage.
     ctx.beginPath();
-    ctx.moveTo(55, 12);
-    ctx.lineTo(12, -2);
-    ctx.lineTo(6, 11);
-    ctx.lineTo(34, 30);
-    ctx.quadraticCurveTo(48, 28, 55, 12);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(0, -48);
-    ctx.bezierCurveTo(9, -44, 12, -24, 11, 18);
-    ctx.bezierCurveTo(10, 28, 7, 38, 3, 46);
-    ctx.lineTo(0, 48);
-    ctx.lineTo(-3, 46);
-    ctx.bezierCurveTo(-7, 38, -10, 28, -11, 18);
-    ctx.bezierCurveTo(-12, -24, -9, -44, 0, -48);
+    ctx.moveTo(244, 52);
+    ctx.quadraticCurveTo(256, 30, 268, 52);
+    ctx.bezierCurveTo(280, 74, 286, 94, 288, 122);
+    ctx.lineTo(291, 235);
+    ctx.bezierCurveTo(292, 267, 282, 311, 270, 352);
+    ctx.lineTo(264, 372);
+    ctx.quadraticCurveTo(256, 390, 248, 372);
+    ctx.lineTo(242, 352);
+    ctx.bezierCurveTo(230, 311, 220, 267, 221, 235);
+    ctx.lineTo(224, 122);
+    ctx.bezierCurveTo(226, 94, 232, 74, 244, 52);
     ctx.closePath();
     ctx.fillStyle = body;
     ctx.fill();
-    ctx.strokeStyle = trim;
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(-6, -42);
-    ctx.quadraticCurveTo(0, -46, 6, -42);
-    ctx.lineTo(5, -26);
-    ctx.quadraticCurveTo(0, -29, -5, -26);
-    ctx.closePath();
+    ctx.rect(229, 108, 54, 20);
     ctx.fillStyle = accent;
     ctx.fill();
+    ctx.stroke();
 
+    // Cockpit.
     ctx.beginPath();
-    ctx.moveTo(-7, -20);
-    ctx.quadraticCurveTo(-9, -8, -3, 2);
-    ctx.lineTo(3, 2);
-    ctx.quadraticCurveTo(9, -8, 7, -20);
-    ctx.quadraticCurveTo(0, -26, -7, -20);
+    ctx.moveTo(238, 88);
+    ctx.quadraticCurveTo(256, 66, 274, 88);
+    ctx.lineTo(278, 150);
+    ctx.quadraticCurveTo(256, 162, 234, 150);
     ctx.closePath();
     ctx.fillStyle = cockpit;
     ctx.fill();
-    ctx.strokeStyle = trim;
+    ctx.stroke();
+    ctx.strokeStyle = "#98d8ff";
+    ctx.beginPath();
+    ctx.moveTo(256, 80);
+    ctx.lineTo(256, 154);
+    ctx.stroke();
+    ctx.strokeStyle = "#2b6fa5";
+    ctx.beginPath();
+    ctx.moveTo(240, 102);
+    ctx.quadraticCurveTo(256, 80, 272, 102);
     ctx.stroke();
 
+    // Main wings.
+    ctx.strokeStyle = trim;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(48, 230);
+    ctx.quadraticCurveTo(48, 205, 74, 196);
+    ctx.lineTo(216, 160);
+    ctx.quadraticCurveTo(236, 155, 240, 178);
+    ctx.lineTo(248, 250);
+    ctx.quadraticCurveTo(250, 266, 233, 272);
+    ctx.lineTo(95, 311);
+    ctx.quadraticCurveTo(61, 321, 48, 293);
+    ctx.closePath();
+    ctx.fillStyle = body;
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(464, 230);
+    ctx.quadraticCurveTo(464, 205, 438, 196);
+    ctx.lineTo(296, 160);
+    ctx.quadraticCurveTo(276, 155, 272, 178);
+    ctx.lineTo(264, 250);
+    ctx.quadraticCurveTo(262, 266, 279, 272);
+    ctx.lineTo(417, 311);
+    ctx.quadraticCurveTo(451, 321, 464, 293);
+    ctx.closePath();
+    ctx.fillStyle = body;
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 7;
+    [[88, 290, 214, 255], [424, 290, 298, 255]].forEach(([x1, y1, x2, y2]) => {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    });
+    ctx.lineWidth = 4;
+    [[118, 282, 231, 249], [394, 282, 281, 249]].forEach(([x1, y1, x2, y2]) => {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    });
+
+    // Wingtip pods and panel hints.
+    ctx.strokeStyle = trim;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(62, 238);
+    ctx.quadraticCurveTo(57, 225, 67, 219);
+    ctx.lineTo(78, 246);
+    ctx.quadraticCurveTo(71, 251, 62, 238);
+    ctx.closePath();
+    ctx.fillStyle = "#6d9dcd";
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(450, 238);
+    ctx.quadraticCurveTo(455, 225, 445, 219);
+    ctx.lineTo(434, 246);
+    ctx.quadraticCurveTo(441, 251, 450, 238);
+    ctx.closePath();
+    ctx.fillStyle = "#6d9dcd";
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = panel;
+    ctx.lineWidth = 2;
+    [[92, 232, 86, 308], [146, 218, 136, 296], [204, 188, 192, 277], [308, 188, 320, 277], [366, 218, 376, 296], [420, 232, 426, 308]].forEach(([x1, y1, x2, y2]) => {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    });
+
+    // Tailplanes and vertical fin.
+    ctx.strokeStyle = trim;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(130, 346);
+    ctx.quadraticCurveTo(130, 322, 154, 322);
+    ctx.lineTo(231, 320);
+    ctx.quadraticCurveTo(247, 320, 247, 337);
+    ctx.lineTo(247, 377);
+    ctx.quadraticCurveTo(247, 390, 232, 390);
+    ctx.lineTo(154, 391);
+    ctx.quadraticCurveTo(130, 391, 130, 368);
+    ctx.closePath();
+    ctx.fillStyle = body;
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(382, 346);
+    ctx.quadraticCurveTo(382, 322, 358, 322);
+    ctx.lineTo(281, 320);
+    ctx.quadraticCurveTo(265, 320, 265, 337);
+    ctx.lineTo(265, 377);
+    ctx.quadraticCurveTo(265, 390, 280, 390);
+    ctx.lineTo(358, 391);
+    ctx.quadraticCurveTo(382, 391, 382, 368);
+    ctx.closePath();
+    ctx.fillStyle = body;
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(236, 270);
+    ctx.bezierCurveTo(242, 244, 249, 230, 256, 230);
+    ctx.bezierCurveTo(263, 230, 270, 244, 276, 270);
+    ctx.lineTo(286, 357);
+    ctx.quadraticCurveTo(287, 370, 276, 370);
+    ctx.lineTo(236, 370);
+    ctx.quadraticCurveTo(225, 370, 226, 357);
+    ctx.closePath();
+    ctx.fillStyle = body;
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(266, 282);
+    ctx.lineTo(252, 305);
+    ctx.lineTo(266, 305);
+    ctx.lineTo(248, 338);
+    ctx.stroke();
+
+    // Intakes and body accent.
     ctx.fillStyle = accent;
     ctx.beginPath();
-    ctx.moveTo(-4, 4);
-    ctx.lineTo(4, 4);
-    ctx.lineTo(2, 30);
-    ctx.lineTo(-2, 30);
+    ctx.moveTo(237, 220);
+    ctx.lineTo(256, 238);
+    ctx.lineTo(275, 220);
+    ctx.lineTo(275, 238);
+    ctx.lineTo(256, 255);
+    ctx.lineTo(237, 238);
     ctx.closePath();
     ctx.fill();
 
-    ctx.beginPath();
-    ctx.moveTo(-22, 30);
-    ctx.lineTo(-4, 27);
-    ctx.lineTo(-2, 34);
-    ctx.lineTo(-16, 39);
-    ctx.quadraticCurveTo(-24, 38, -22, 30);
-    ctx.closePath();
-    ctx.fillStyle = wing;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(22, 30);
-    ctx.lineTo(4, 27);
-    ctx.lineTo(2, 34);
-    ctx.lineTo(16, 39);
-    ctx.quadraticCurveTo(24, 38, 22, 30);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(0, 14);
-    ctx.lineTo(0, 44);
-    ctx.lineTo(12, 35);
-    ctx.quadraticCurveTo(9, 18, 0, 14);
-    ctx.closePath();
-    ctx.fillStyle = wing;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.ellipse(0, 46, 8, 4, 0, 0, Math.PI * 2);
-    ctx.fillStyle = "#3d4654";
-    ctx.fill();
     ctx.strokeStyle = trim;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(205, 252);
+    ctx.quadraticCurveTo(210, 239, 223, 238);
+    ctx.lineTo(227, 275);
+    ctx.quadraticCurveTo(212, 275, 205, 252);
+    ctx.closePath();
+    ctx.fillStyle = dark;
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(307, 252);
+    ctx.quadraticCurveTo(302, 239, 289, 238);
+    ctx.lineTo(285, 275);
+    ctx.quadraticCurveTo(300, 275, 307, 252);
+    ctx.closePath();
+    ctx.fillStyle = dark;
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(212, 249);
+    ctx.quadraticCurveTo(216, 244, 223, 244);
+    ctx.lineTo(224, 264);
+    ctx.quadraticCurveTo(216, 264, 212, 249);
+    ctx.closePath();
+    ctx.fillStyle = "#1f1f22";
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(300, 249);
+    ctx.quadraticCurveTo(296, 244, 289, 244);
+    ctx.lineTo(288, 264);
+    ctx.quadraticCurveTo(296, 264, 300, 249);
+    ctx.closePath();
+    ctx.fill();
     ctx.stroke();
 
+    // Exhaust flame.
+    ctx.strokeStyle = trim;
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(-4, 49);
-    ctx.quadraticCurveTo(0, 57, 4, 49);
-    ctx.quadraticCurveTo(0, 53, -4, 49);
+    ctx.moveTo(244, 366);
+    ctx.quadraticCurveTo(256, 395, 268, 366);
+    ctx.lineTo(264, 401);
+    ctx.quadraticCurveTo(256, 413, 248, 401);
     ctx.closePath();
-    ctx.fillStyle = "#ff8a3d";
+    ctx.fillStyle = "#ff7b1a";
     ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(248, 372);
+    ctx.quadraticCurveTo(256, 389, 264, 372);
+    ctx.lineTo(261, 393);
+    ctx.quadraticCurveTo(256, 401, 251, 393);
+    ctx.closePath();
+    ctx.fillStyle = "#ffd24a";
+    ctx.fill();
+
+    // Redraw fuselage outline over overlaps.
+    ctx.strokeStyle = trim;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(244, 52);
+    ctx.quadraticCurveTo(256, 30, 268, 52);
+    ctx.bezierCurveTo(280, 74, 286, 94, 288, 122);
+    ctx.lineTo(291, 235);
+    ctx.bezierCurveTo(292, 267, 282, 311, 270, 352);
+    ctx.lineTo(264, 372);
+    ctx.quadraticCurveTo(256, 390, 248, 372);
+    ctx.lineTo(242, 352);
+    ctx.bezierCurveTo(230, 311, 220, 267, 221, 235);
+    ctx.lineTo(224, 122);
+    ctx.bezierCurveTo(226, 94, 232, 74, 244, 52);
+    ctx.stroke();
+
+    drawTinyRoundel(112, 258, 19);
+    drawTinyRoundel(400, 258, 19);
+    ctx.restore();
+  }
+
+  function drawTinyRoundel(x, y, radius) {
+    ctx.fillStyle = "#14379e";
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(x - radius * 1.52, y - radius * 0.32, radius * 3.05, radius * 0.63);
+    ctx.beginPath();
+    ctx.moveTo(x, y - radius * 0.95);
+    ctx.lineTo(x + radius * 0.26, y - radius * 0.37);
+    ctx.lineTo(x + radius * 0.89, y - radius * 0.32);
+    ctx.lineTo(x + radius * 0.42, y + radius * 0.11);
+    ctx.lineTo(x + radius * 0.58, y + radius * 0.74);
+    ctx.lineTo(x, y + radius * 0.37);
+    ctx.lineTo(x - radius * 0.58, y + radius * 0.74);
+    ctx.lineTo(x - radius * 0.42, y + radius * 0.11);
+    ctx.lineTo(x - radius * 0.89, y - radius * 0.32);
+    ctx.lineTo(x - radius * 0.26, y - radius * 0.37);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#14379e";
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineWidth = 4;
+    ctx.strokeRect(x - radius * 1.52, y - radius * 0.32, radius * 3.05, radius * 0.63);
   }
 
   function roundRect(x, y, width, height, radius) {
@@ -1653,6 +2050,14 @@ function initAirplaneShooter() {
       saveScoreFromOverlay();
       return true;
     }
+    if (target.closest("[data-reset-leaderboard]")) {
+      confirmResetLeaderboard();
+      return true;
+    }
+    if (target.closest("[data-confirm-reset]")) {
+      resetLeaderboard();
+      return true;
+    }
     if (target.closest("[data-close-overlay]")) {
       hideOverlay();
       return true;
@@ -1728,134 +2133,364 @@ function drawPlanePreviews(root) {
     ctx.strokeStyle = "#1f2d3a";
 
     if (planeId === "biplane") {
-      previewRoundRect(ctx, -46, 6, 92, 12, 6);
-      ctx.fillStyle = "#f2c14e";
-      ctx.fill();
-      ctx.stroke();
-      previewRoundRect(ctx, -42, -16, 84, 12, 6);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "#fff4b0";
-      ctx.fillRect(-8, -16, 16, 12);
-      ctx.fillRect(-8, 6, 16, 12);
+      ctx.save();
+      ctx.scale(0.23, 0.23);
+      ctx.translate(-256, -245);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#000";
+
       ctx.beginPath();
-      ctx.moveTo(0, -45);
-      ctx.bezierCurveTo(12, -40, 16, -24, 14, 12);
-      ctx.bezierCurveTo(12, 28, 8, 40, 0, 46);
-      ctx.bezierCurveTo(-8, 40, -12, 28, -14, 12);
-      ctx.bezierCurveTo(-16, -24, -12, -40, 0, -45);
+      ctx.moveTo(56, 130);
+      ctx.quadraticCurveTo(56, 112, 77, 112);
+      ctx.lineTo(215, 112);
+      ctx.quadraticCurveTo(231, 112, 231, 129);
+      ctx.lineTo(231, 136);
+      ctx.quadraticCurveTo(231, 152, 215, 152);
+      ctx.lineTo(77, 152);
+      ctx.quadraticCurveTo(56, 152, 56, 134);
       ctx.closePath();
-      ctx.fillStyle = "#e44d3a";
+      ctx.fillStyle = "#f6c21a";
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = "#87c6eb";
       ctx.beginPath();
-      ctx.ellipse(0, -6, 8, 10, 0, 0, Math.PI * 2);
+      ctx.moveTo(281, 129);
+      ctx.quadraticCurveTo(281, 112, 297, 112);
+      ctx.lineTo(435, 112);
+      ctx.quadraticCurveTo(456, 112, 456, 130);
+      ctx.lineTo(456, 134);
+      ctx.quadraticCurveTo(456, 152, 435, 152);
+      ctx.lineTo(297, 152);
+      ctx.quadraticCurveTo(281, 152, 281, 136);
+      ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      previewRoundRect(ctx, -18, 28, 36, 8, 4);
-      ctx.fillStyle = "#f2c14e";
+      ctx.fillStyle = "#f2f2f2";
+      ctx.fillRect(124, 112, 34, 40);
+      ctx.strokeRect(124, 112, 34, 40);
+      ctx.fillRect(354, 112, 34, 40);
+      ctx.strokeRect(354, 112, 34, 40);
+
+      ctx.beginPath();
+      ctx.moveTo(70, 222);
+      ctx.quadraticCurveTo(70, 203, 92, 203);
+      ctx.lineTo(220, 203);
+      ctx.quadraticCurveTo(241, 203, 241, 221);
+      ctx.lineTo(241, 229);
+      ctx.quadraticCurveTo(241, 247, 220, 247);
+      ctx.lineTo(92, 247);
+      ctx.quadraticCurveTo(70, 247, 70, 228);
+      ctx.closePath();
+      ctx.fillStyle = "#f6c21a";
       ctx.fill();
       ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(271, 221);
+      ctx.quadraticCurveTo(271, 203, 292, 203);
+      ctx.lineTo(420, 203);
+      ctx.quadraticCurveTo(442, 203, 442, 222);
+      ctx.lineTo(442, 228);
+      ctx.quadraticCurveTo(442, 247, 420, 247);
+      ctx.lineTo(292, 247);
+      ctx.quadraticCurveTo(271, 247, 271, 229);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#f2f2f2";
+      ctx.fillRect(126, 203, 36, 44);
+      ctx.strokeRect(126, 203, 36, 44);
+      ctx.fillRect(350, 203, 36, 44);
+      ctx.strokeRect(350, 203, 36, 44);
+
+      ctx.strokeStyle = "#2f2f2f";
+      ctx.lineWidth = 7;
+      [[104, 152, 122, 203], [134, 152, 122, 203], [408, 152, 390, 203], [378, 152, 390, 203]].forEach(([x1, y1, x2, y2]) => {
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      });
+
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(227, 90);
+      ctx.bezierCurveTo(237, 86, 247, 84, 256, 84);
+      ctx.bezierCurveTo(265, 84, 275, 86, 285, 90);
+      ctx.lineTo(285, 261);
+      ctx.bezierCurveTo(285, 291, 276, 322, 265, 350);
+      ctx.lineTo(259, 367);
+      ctx.quadraticCurveTo(256, 377, 253, 367);
+      ctx.lineTo(247, 350);
+      ctx.bezierCurveTo(236, 322, 227, 291, 227, 261);
+      ctx.closePath();
+      ctx.fillStyle = "#f2331e";
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(256, 166, 22, 24, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "#5b95d9";
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(138, 287);
+      ctx.bezierCurveTo(166, 271, 199, 268, 230, 275);
+      ctx.lineTo(238, 322);
+      ctx.bezierCurveTo(203, 327, 167, 327, 139, 323);
+      ctx.bezierCurveTo(123, 321, 121, 297, 138, 287);
+      ctx.closePath();
+      ctx.fillStyle = "#f6c21a";
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(374, 287);
+      ctx.bezierCurveTo(346, 271, 313, 268, 282, 275);
+      ctx.lineTo(274, 322);
+      ctx.bezierCurveTo(309, 327, 345, 327, 373, 323);
+      ctx.bezierCurveTo(389, 321, 391, 297, 374, 287);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
     }
 
     if (planeId === "mustang") {
+      ctx.save();
+      ctx.scale(0.23, 0.23);
+      ctx.translate(-256, -250);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#000";
+
       ctx.beginPath();
-      ctx.moveTo(-52, 4);
-      ctx.lineTo(-18, -2);
-      ctx.lineTo(-8, 10);
-      ctx.lineTo(-34, 18);
-      ctx.quadraticCurveTo(-44, 20, -52, 4);
+      ctx.moveTo(38, 196);
+      ctx.quadraticCurveTo(38, 166, 72, 164);
+      ctx.lineTo(210, 154);
+      ctx.quadraticCurveTo(231, 152, 231, 176);
+      ctx.lineTo(231, 258);
+      ctx.quadraticCurveTo(231, 276, 212, 275);
+      ctx.lineTo(74, 252);
+      ctx.quadraticCurveTo(38, 246, 38, 221);
       ctx.closePath();
-      ctx.fillStyle = "#aab7c4";
+      ctx.fillStyle = "#d9d9dc";
       ctx.fill();
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(52, 4);
-      ctx.lineTo(18, -2);
-      ctx.lineTo(8, 10);
-      ctx.lineTo(34, 18);
-      ctx.quadraticCurveTo(44, 20, 52, 4);
+      ctx.moveTo(474, 196);
+      ctx.quadraticCurveTo(474, 166, 440, 164);
+      ctx.lineTo(302, 154);
+      ctx.quadraticCurveTo(281, 152, 281, 176);
+      ctx.lineTo(281, 258);
+      ctx.quadraticCurveTo(281, 276, 300, 275);
+      ctx.lineTo(438, 252);
+      ctx.quadraticCurveTo(474, 246, 474, 221);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
+
+      ctx.fillStyle = "#222";
+      ctx.fillRect(154, 155, 32, 118);
+      ctx.fillRect(326, 155, 32, 118);
+      ctx.fillStyle = "#f2f2f2";
+      ctx.fillRect(186, 155, 24, 118);
+      ctx.fillRect(302, 155, 24, 118);
+
       ctx.beginPath();
-      ctx.moveTo(0, -47);
-      ctx.bezierCurveTo(10, -44, 14, -26, 12, 14);
-      ctx.bezierCurveTo(10, 30, 6, 42, 0, 48);
-      ctx.bezierCurveTo(-6, 42, -10, 30, -12, 14);
-      ctx.bezierCurveTo(-14, -26, -10, -44, 0, -47);
+      ctx.moveTo(226, 132);
+      ctx.bezierCurveTo(235, 129, 245, 128, 256, 128);
+      ctx.bezierCurveTo(267, 128, 277, 129, 286, 132);
+      ctx.lineTo(289, 270);
+      ctx.bezierCurveTo(289, 311, 278, 355, 266, 395);
+      ctx.lineTo(261, 413);
+      ctx.quadraticCurveTo(256, 426, 251, 413);
+      ctx.lineTo(246, 395);
+      ctx.bezierCurveTo(234, 355, 223, 311, 223, 270);
+      ctx.closePath();
+      ctx.fillStyle = "#d9d9dc";
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#444";
+      ctx.fillRect(223, 268, 66, 28);
+      ctx.fillStyle = "#f2331e";
+      ctx.fillRect(246, 295, 20, 118);
+
+      ctx.beginPath();
+      ctx.moveTo(237, 97);
+      ctx.quadraticCurveTo(256, 64, 275, 97);
+      ctx.lineTo(272, 110);
+      ctx.quadraticCurveTo(256, 105, 240, 110);
+      ctx.closePath();
+      ctx.fillStyle = "#f2331e";
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#f1be1a";
+      ctx.fillRect(226, 102, 60, 30);
+      ctx.strokeRect(226, 102, 60, 30);
+      ctx.fillStyle = "#f2331e";
+      ctx.fillRect(226, 102, 15, 15);
+      ctx.fillRect(256, 102, 15, 15);
+      ctx.fillRect(241, 117, 15, 15);
+      ctx.fillRect(271, 117, 15, 15);
+
+      ctx.beginPath();
+      ctx.ellipse(256, 198, 17, 30, 0, 0, Math.PI * 2);
+      ctx.fillStyle = "#4fa9ee";
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(126, 326);
+      ctx.quadraticCurveTo(126, 295, 158, 300);
+      ctx.lineTo(229, 312);
+      ctx.quadraticCurveTo(246, 315, 246, 333);
+      ctx.lineTo(246, 364);
+      ctx.quadraticCurveTo(246, 377, 230, 378);
+      ctx.lineTo(154, 373);
+      ctx.quadraticCurveTo(126, 371, 126, 346);
+      ctx.closePath();
+      ctx.fillStyle = "#d9d9dc";
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(386, 326);
+      ctx.quadraticCurveTo(386, 295, 354, 300);
+      ctx.lineTo(283, 312);
+      ctx.quadraticCurveTo(266, 315, 266, 333);
+      ctx.lineTo(266, 364);
+      ctx.quadraticCurveTo(266, 377, 282, 378);
+      ctx.lineTo(358, 373);
+      ctx.quadraticCurveTo(386, 371, 386, 346);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = "#d94e41";
+
+      ctx.fillStyle = "#14379e";
       ctx.beginPath();
-      ctx.moveTo(-8, -44);
-      ctx.quadraticCurveTo(0, -49, 8, -44);
-      ctx.lineTo(7, -30);
-      ctx.quadraticCurveTo(0, -33, -7, -30);
-      ctx.closePath();
+      ctx.arc(108, 202, 22, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#79bde8";
-      ctx.beginPath();
-      ctx.moveTo(-8, -12);
-      ctx.quadraticCurveTo(-9, -2, -4, 5);
-      ctx.lineTo(4, 5);
-      ctx.quadraticCurveTo(9, -2, 8, -12);
-      ctx.quadraticCurveTo(0, -18, -8, -12);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(74, 195, 68, 14);
+      ctx.restore();
     }
 
     if (planeId === "jet") {
+      ctx.save();
+      ctx.scale(0.23, 0.23);
+      ctx.translate(-256, -255);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#000";
+
       ctx.beginPath();
-      ctx.moveTo(-55, 12);
-      ctx.lineTo(-12, -2);
-      ctx.lineTo(-6, 11);
-      ctx.lineTo(-34, 30);
-      ctx.quadraticCurveTo(-48, 28, -55, 12);
+      ctx.moveTo(48, 230);
+      ctx.quadraticCurveTo(48, 205, 74, 196);
+      ctx.lineTo(216, 160);
+      ctx.quadraticCurveTo(236, 155, 240, 178);
+      ctx.lineTo(248, 250);
+      ctx.quadraticCurveTo(250, 266, 233, 272);
+      ctx.lineTo(95, 311);
+      ctx.quadraticCurveTo(61, 321, 48, 293);
       ctx.closePath();
-      ctx.fillStyle = "#3b6fd8";
+      ctx.fillStyle = "#5b90c8";
       ctx.fill();
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(55, 12);
-      ctx.lineTo(12, -2);
-      ctx.lineTo(6, 11);
-      ctx.lineTo(34, 30);
-      ctx.quadraticCurveTo(48, 28, 55, 12);
+      ctx.moveTo(464, 230);
+      ctx.quadraticCurveTo(464, 205, 438, 196);
+      ctx.lineTo(296, 160);
+      ctx.quadraticCurveTo(276, 155, 272, 178);
+      ctx.lineTo(264, 250);
+      ctx.quadraticCurveTo(262, 266, 279, 272);
+      ctx.lineTo(417, 311);
+      ctx.quadraticCurveTo(451, 321, 464, 293);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
+
+      ctx.strokeStyle = "#f2c21c";
+      ctx.lineWidth = 7;
       ctx.beginPath();
-      ctx.moveTo(0, -48);
-      ctx.bezierCurveTo(9, -44, 12, -24, 11, 18);
-      ctx.bezierCurveTo(10, 30, 6, 42, 0, 48);
-      ctx.bezierCurveTo(-6, 42, -10, 30, -11, 18);
-      ctx.bezierCurveTo(-12, -24, -9, -44, 0, -48);
+      ctx.moveTo(88, 290);
+      ctx.lineTo(214, 255);
+      ctx.moveTo(424, 290);
+      ctx.lineTo(298, 255);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(244, 52);
+      ctx.quadraticCurveTo(256, 30, 268, 52);
+      ctx.bezierCurveTo(280, 74, 286, 94, 288, 122);
+      ctx.lineTo(291, 235);
+      ctx.bezierCurveTo(292, 267, 282, 311, 270, 352);
+      ctx.lineTo(264, 372);
+      ctx.quadraticCurveTo(256, 390, 248, 372);
+      ctx.lineTo(242, 352);
+      ctx.bezierCurveTo(230, 311, 220, 267, 221, 235);
+      ctx.lineTo(224, 122);
+      ctx.bezierCurveTo(226, 94, 232, 74, 244, 52);
       ctx.closePath();
-      ctx.fillStyle = "#5b8def";
+      ctx.fillStyle = "#5b90c8";
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = "#ffd166";
+
+      ctx.fillStyle = "#f2c21c";
+      ctx.fillRect(229, 108, 54, 20);
+      ctx.strokeRect(229, 108, 54, 20);
+
       ctx.beginPath();
-      ctx.moveTo(-6, -42);
-      ctx.quadraticCurveTo(0, -46, 6, -42);
-      ctx.lineTo(5, -26);
-      ctx.quadraticCurveTo(0, -29, -5, -26);
+      ctx.moveTo(238, 88);
+      ctx.quadraticCurveTo(256, 66, 274, 88);
+      ctx.lineTo(278, 150);
+      ctx.quadraticCurveTo(256, 162, 234, 150);
       ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = "#92d4ff";
-      ctx.beginPath();
-      ctx.moveTo(-7, -20);
-      ctx.quadraticCurveTo(-9, -8, -3, 2);
-      ctx.lineTo(3, 2);
-      ctx.quadraticCurveTo(9, -8, 7, -20);
-      ctx.quadraticCurveTo(0, -26, -7, -20);
-      ctx.closePath();
+      ctx.fillStyle = "#58aeef";
       ctx.fill();
       ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(236, 270);
+      ctx.bezierCurveTo(242, 244, 249, 230, 256, 230);
+      ctx.bezierCurveTo(263, 230, 270, 244, 276, 270);
+      ctx.lineTo(286, 357);
+      ctx.quadraticCurveTo(287, 370, 276, 370);
+      ctx.lineTo(236, 370);
+      ctx.quadraticCurveTo(225, 370, 226, 357);
+      ctx.closePath();
+      ctx.fillStyle = "#5b90c8";
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = "#f2c21c";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(266, 282);
+      ctx.lineTo(252, 305);
+      ctx.lineTo(266, 305);
+      ctx.lineTo(248, 338);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(244, 366);
+      ctx.quadraticCurveTo(256, 395, 268, 366);
+      ctx.lineTo(264, 401);
+      ctx.quadraticCurveTo(256, 413, 248, 401);
+      ctx.closePath();
+      ctx.fillStyle = "#ff7b1a";
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#14379e";
+      ctx.beginPath();
+      ctx.arc(112, 258, 19, 0, Math.PI * 2);
+      ctx.arc(400, 258, 19, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(83, 252, 58, 12);
+      ctx.fillRect(371, 252, 58, 12);
+      ctx.restore();
     }
     ctx.restore();
   });

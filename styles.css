@@ -792,6 +792,43 @@ select {
   font-weight: 900;
 }
 
+.leaderboard-table tr.is-new-score td {
+  background: #fff3c7;
+  border-top: 1px solid #e1b744;
+  border-bottom: 1px solid #e1b744;
+  color: var(--ink);
+}
+
+.leaderboard-table tr.is-new-score td:first-child {
+  border-left: 3px solid #d89b12;
+}
+
+.new-score-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #d89b12;
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  vertical-align: middle;
+}
+
+.leaderboard-table .score-divider td {
+  height: 8px;
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.danger-button {
+  border-color: #e0a3a3;
+  background: #fff0f0;
+  color: #8f1f24;
+}
+
 .overlay-actions {
   display: grid;
   gap: 8px;
@@ -1059,24 +1096,9 @@ select {
   border-left: 3px solid #ffce62;
 }
 
-.new-score-badge {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 2px 6px;
-  border-radius: 999px;
+.star-panel .new-score-badge {
   background: #ffce62;
   color: #2b1d05;
-  font-size: 0.68rem;
-  font-weight: 900;
-  letter-spacing: 0;
-  vertical-align: middle;
-}
-
-.leaderboard-table .score-divider td {
-  height: 8px;
-  padding: 0;
-  border-bottom: 0;
-  background: transparent;
 }
 
 .star-panel .danger-button {

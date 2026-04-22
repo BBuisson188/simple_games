@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <g stroke="#000" stroke-linecap="round" stroke-linejoin="round">
+    <!-- far nose cap -->
+    <path d="M236 74Q256 50 276 74L272 92Q256 86 240 92Z" fill="#f2f2f2" stroke-width="4"/>
+    <path d="M243 73Q256 59 269 73L267 82Q256 79 245 82Z" fill="#b98649" stroke-width="4"/>
+
+    <!-- upper wings, slightly smaller to feel farther away -->
+    <path d="M56 130Q56 112 77 112H215Q231 112 231 129V136Q231 152 215 152H77Q56 152 56 134Z" fill="#f6c21a" stroke-width="4"/>
+    <path d="M281 129Q281 112 297 112H435Q456 112 456 130V134Q456 152 435 152H297Q281 152 281 136Z" fill="#f6c21a" stroke-width="4"/>
+    <rect x="124" y="112" width="34" height="40" fill="#f2f2f2" stroke-width="4"/>
+    <rect x="354" y="112" width="34" height="40" fill="#f2f2f2" stroke-width="4"/>
+
+    <!-- lower wings, slightly larger to feel closer -->
+    <path d="M70 222Q70 203 92 203H220Q241 203 241 221V229Q241 247 220 247H92Q70 247 70 228Z" fill="#f6c21a" stroke-width="4"/>
+    <path d="M271 221Q271 203 292 203H420Q442 203 442 222V228Q442 247 420 247H292Q271 247 271 229Z" fill="#f6c21a" stroke-width="4"/>
+    <rect x="126" y="203" width="36" height="44" fill="#f2f2f2" stroke-width="4"/>
+    <rect x="350" y="203" width="36" height="44" fill="#f2f2f2" stroke-width="4"/>
+
+    <!-- simple interplane struts -->
+    <path d="M104 152L122 203" stroke="#2f2f2f" stroke-width="7"/>
+    <path d="M134 152L122 203" stroke="#2f2f2f" stroke-width="7"/>
+    <path d="M170 152L206 203" stroke="#2f2f2f" stroke-width="7"/>
+    <path d="M200 152L170 203" stroke="#2f2f2f" stroke-width="7"/>
+
+    <path d="M408 152L390 203" stroke="#2f2f2f" stroke-width="7"/>
+    <path d="M378 152L390 203" stroke="#2f2f2f" stroke-width="7"/>
+    <path d="M342 152L306 203" stroke="#2f2f2f" stroke-width="7"/>
+    <path d="M312 152L342 203" stroke="#2f2f2f" stroke-width="7"/>
+
+    <!-- fuselage -->
+    <path d="M227 90C237 86 247 84 256 84C265 84 275 86 285 90V261C285 291 276 322 265 350L259 367Q256 377 253 367L247 350C236 322 227 291 227 261Z" fill="#f2331e" stroke-width="4"/>
+
+    <!-- canopy -->
+    <ellipse cx="256" cy="166" rx="22" ry="24" fill="#5b95d9" stroke-width="4"/>
+    <ellipse cx="256" cy="166" rx="28" ry="30" fill="none" stroke-width="4"/>
+
+    <!-- center rear fin -->
+    <path d="M256 236C245 236 242 247 242 268V345C242 359 247 374 256 391C265 374 270 359 270 345V268C270 247 267 236 256 236Z" fill="#f2331e" stroke-width="4"/>
+
+    <!-- tailplanes, enlarged a bit for better small-size reading -->
+    <path d="M138 287C166 271 199 268 230 275L238 322C203 327 167 327 139 323C123 321 121 297 138 287Z" fill="#f6c21a" stroke-width="4"/>
+    <path d="M374 287C346 271 313 268 282 275L274 322C309 327 345 327 373 323C389 321 391 297 374 287Z" fill="#f6c21a" stroke-width="4"/>
+    <path d="M172 306H229" stroke-width="4"/>
+    <path d="M283 306H340" stroke-width="4"/>
+
+    <!-- tiny tail wheel only -->
+    <path d="M256 391V407" stroke="#2f2f2f" stroke-width="5"/>
+    <circle cx="256" cy="416" r="8" fill="#5c5c5c" stroke-width="4"/>
+  </g>
+</svg>
