@@ -79,7 +79,7 @@ export function renderStarfighterSinistar() {
             <div class="game-stats surface-stats star-stats" aria-live="polite">
               <span>Level <strong data-star-level>1</strong></span>
               <span>Score <strong data-star-score>0</strong></span>
-              <span>Hits <strong data-star-hits>0/6</strong></span>
+              <span>Shields <strong data-star-hits>6/6</strong></span>
               <span>Kills <strong data-star-kills>0/9</strong></span>
             </div>
             <div class="star-controls" aria-label="Starfighter controls">
@@ -173,7 +173,7 @@ function initStarfighterSinistar() {
   function updateHud() {
     levelEl.textContent = String(state.level + 1);
     scoreEl.textContent = String(state.score);
-    hitsEl.textContent = `${Math.min(MAX_ALLOWED_HITS, state.hits)}/${MAX_ALLOWED_HITS}`;
+    hitsEl.textContent = `${Math.max(0, MAX_ALLOWED_HITS - state.hits)}/${MAX_ALLOWED_HITS}`;
     killsEl.textContent = state.boss ? "Boss" : `${state.kills}/${stage().killsNeeded}`;
     torpedoButton.disabled = !state.torpedoAvailable || state.torpedoFired || state.mode !== "boss";
   }
@@ -483,8 +483,8 @@ function initStarfighterSinistar() {
     if (state.hits > MAX_ALLOWED_HITS) {
       gameOver("Ship Destroyed", reason);
     } else {
-      const remaining = MAX_ALLOWED_HITS - state.hits + 1;
-      setMessage("Shields hit", `${remaining} hit${remaining === 1 ? "" : "s"} until destruction.`, 1.4);
+      const shields = MAX_ALLOWED_HITS - state.hits;
+      setMessage("Shields hit", shields > 0 ? `${shields}/${MAX_ALLOWED_HITS} shields remaining.` : "Shields depleted. Next hit destroys the ship.", 1.4);
     }
     updateHud();
   }
