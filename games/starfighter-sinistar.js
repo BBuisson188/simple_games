@@ -196,6 +196,7 @@ function initStarfighterSinistar() {
 
   function nextLevel() {
     state.level += 1;
+    state.running = true;
     hideOverlay();
     resetLevel();
     requestAnimationFrame(loop);
