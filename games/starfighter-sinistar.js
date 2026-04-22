@@ -1039,6 +1039,21 @@ function initStarfighterSinistar() {
     if (event.pointerId === input.pointerId) resetJoystick();
   });
 
+  function preventGameplayGesture(event) {
+    if (event.target.closest(".star-canvas-wrap")) event.preventDefault();
+  }
+
+  function preventMultiTouchMove(event) {
+    if (event.touches.length > 1 || event.target.closest(".star-canvas-wrap")) {
+      event.preventDefault();
+    }
+  }
+
+  panel.addEventListener("touchmove", preventMultiTouchMove, { passive: false });
+  panel.addEventListener("gesturestart", preventGameplayGesture);
+  panel.addEventListener("gesturechange", preventGameplayGesture);
+  panel.addEventListener("gestureend", preventGameplayGesture);
+
   window.addEventListener("keydown", keyDown);
   window.addEventListener("keyup", keyUp);
 
@@ -1111,6 +1126,10 @@ function initStarfighterSinistar() {
       input.pointerId = null;
       window.removeEventListener("keydown", keyDown);
       window.removeEventListener("keyup", keyUp);
+      panel.removeEventListener("touchmove", preventMultiTouchMove);
+      panel.removeEventListener("gesturestart", preventGameplayGesture);
+      panel.removeEventListener("gesturechange", preventGameplayGesture);
+      panel.removeEventListener("gestureend", preventGameplayGesture);
     }
   };
 
@@ -1141,6 +1160,10 @@ function ctxMove(context, points) {
 }
 
 function drawFalconSprite(context) {
+  svgEllipse(context, 52, 64, 35, 33, "#c9c9c9", "#565656", 2.4);
+  svgEllipse(context, 53, 64, 23, 22, "#d7d7d7", "#777777", 1.4);
+  svgPath(context, "M22 51 Q33 30 55 30 Q76 31 86 51 L78 58 Q67 47 53 47 Q38 47 30 58 Z", "#d6d6d6", "#565656", 1.8);
+  svgPath(context, "M22 77 Q33 98 55 98 Q76 97 86 77 L78 70 Q67 81 53 81 Q38 81 30 70 Z", "#bdbdbd", "#565656", 1.8);
   svgPath(context, "M64 54 L92 54 L110 46 L116 52 L116 60 L104 63 L92 63 L64 62 Z", "#d1d1d1", "#565656", 2.2);
   svgPath(context, "M64 66 L92 66 L104 65 L116 68 L116 76 L110 82 L92 74 L64 74 Z", "#d1d1d1", "#565656", 2.2);
   svgRect(context, 68, 56.5, 18, 4.5, "#a8a8a8");
@@ -1186,6 +1209,12 @@ function drawFalconSprite(context) {
 }
 
 function drawXwingSprite(context) {
+  svgRect(context, 18, 42, 2, 38, "#d7dbde");
+  svgRect(context, 17, 50, 4, 2, "#748595", "#31465a", 0.8);
+  svgRect(context, 17, 60, 4, 7, "#f1c40f");
+  svgRect(context, 16, 80, 6, 20, "#d7dbde", "#31465a", 1);
+  svgRect(context, 15, 99, 8, 3, "#7d8f9b", "#31465a", 0.8);
+  svgLine(context, 16, 83, 22, 83, "#31465a", 0.7);
   svgRect(context, 108, 42, 2, 38, "#d7dbde");
   svgRect(context, 107, 50, 4, 2, "#748595", "#31465a", 0.8);
   svgRect(context, 107, 60, 4, 7, "#f1c40f");

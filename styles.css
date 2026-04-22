@@ -936,6 +936,10 @@ select {
   position: relative;
   width: min(100%, 900px);
   margin: 0 auto;
+  touch-action: none;
+  overscroll-behavior: contain;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .star-canvas {
@@ -1000,6 +1004,8 @@ select {
   gap: 12px;
   pointer-events: none;
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .star-joystick {
@@ -1045,6 +1051,8 @@ select {
   font-weight: 900;
   text-transform: uppercase;
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
   box-shadow: 0 6px 0 rgba(0, 0, 0, 0.36), 0 14px 26px rgba(0, 0, 0, 0.28);
 }
 
