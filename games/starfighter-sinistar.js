@@ -787,25 +787,11 @@ function initStarfighterSinistar() {
   }
 
   function drawDeathStarBoss() {
-    const gradient = ctx.createRadialGradient(-14, -16, 10, 0, 0, 68);
-    gradient.addColorStop(0, "#d9dee2");
-    gradient.addColorStop(1, "#6f7a82");
-    ctx.fillStyle = gradient;
-    ctx.strokeStyle = "#3e484f";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(0, 0, 66, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.strokeStyle = "#4b555d";
-    ctx.beginPath();
-    ctx.moveTo(-64, 3);
-    ctx.lineTo(64, 3);
-    ctx.stroke();
-    ctx.fillStyle = "#44515a";
-    ctx.beginPath();
-    ctx.arc(21, -18, 18, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.save();
+    ctx.scale(1.08, 1.08);
+    ctx.translate(-64, -64);
+    drawDeathStarSprite(ctx);
+    ctx.restore();
   }
 
   function drawAsteroid(asteroid) {
@@ -1279,6 +1265,32 @@ function drawDroidBossSprite(context) {
   svgLine(context, 29, 69, 73, 69, "#5b6168", 0.9);
   svgLine(context, 64, 40, 97, 31, "#a6adb2", 0.9);
   svgLine(context, 64, 88, 97, 97, "#a6adb2", 0.9);
+}
+
+function drawDeathStarSprite(context) {
+  svgCircle(context, 64, 64, 56, "#b9b9b9", "#222222", 2);
+  svgPath(context, "M18 48 Q64 28 110 48", null, "#555555", 0.8);
+  svgPath(context, "M20 82 Q64 102 108 82", null, "#555555", 0.8);
+  svgPath(context, "M33 25 Q64 16 95 25", null, "#555555", 0.8);
+  svgPath(context, "M33 103 Q64 112 95 103", null, "#555555", 0.8);
+  svgPath(context, "M51 10 Q47 42 49 118", null, "#555555", 0.7);
+  svgPath(context, "M64 8 Q63 42 64 120", null, "#555555", 0.7);
+  svgPath(context, "M78 10 Q83 42 79 118", null, "#555555", 0.7);
+  svgPath(context, "M92 17 Q101 50 93 111", null, "#555555", 0.7);
+  svgRect(context, 9, 59, 110, 10, "#8f9494");
+  svgLine(context, 9, 59, 119, 59, "#222222", 1.6);
+  svgLine(context, 9, 69, 119, 69, "#222222", 1.6);
+  svgLine(context, 9, 64, 119, 64, "#4d5252", 0.8);
+  [20, 34, 49, 66, 83, 100].forEach((x) => svgLine(context, x, 59, x, 69, "#4b4f4f", 0.7));
+  svgCircle(context, 43, 38, 18, "#a8abab", "#222222", 1.4);
+  svgCircle(context, 43, 38, 13, null, "#333333", 1);
+  svgCircle(context, 43, 38, 8, null, "#333333", 0.9);
+  svgCircle(context, 43, 38, 4, "#777777", "#222222", 0.8);
+  svgLine(context, 43, 20, 43, 56, "#333333", 0.7);
+  svgLine(context, 25, 38, 61, 38, "#333333", 0.7);
+  svgLine(context, 31, 26, 55, 50, "#333333", 0.7);
+  svgLine(context, 55, 26, 31, 50, "#333333", 0.7);
+  [[26, 82, 31, 101], [36, 86, 42, 108], [72, 82, 70, 112], [91, 78, 87, 104], [46, 91, 61, 91], [80, 95, 96, 95]].forEach((line) => svgLine(context, ...line, "#555555", 0.8));
 }
 
 function svgPath(context, d, fill, stroke, strokeWidth = 1) {
