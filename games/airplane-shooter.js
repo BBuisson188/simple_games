@@ -1869,6 +1869,191 @@ function initAirplaneShooter() {
     ctx.strokeRect(x - radius * 1.52, y - radius * 0.32, radius * 3.05, radius * 0.63);
   }
 
+  function drawEnemyFighter(x, y, scale, spin) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.PI);
+    ctx.scale(scale, scale);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    ctx.save();
+    ctx.scale(0.28, 0.28);
+    ctx.translate(-256, -250);
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 4;
+
+    // Spinner and nose band from the supplied enemy fighter art.
+    ctx.beginPath();
+    ctx.moveTo(237, 98);
+    ctx.quadraticCurveTo(256, 64, 275, 98);
+    ctx.lineTo(272, 111);
+    ctx.quadraticCurveTo(256, 106, 240, 111);
+    ctx.closePath();
+    ctx.fillStyle = "#2f8a64";
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.rect(228, 106, 56, 26);
+    ctx.fillStyle = "#d7d1b2";
+    ctx.fill();
+    ctx.stroke();
+
+    // Main wings.
+    ctx.beginPath();
+    ctx.moveTo(42, 196);
+    ctx.quadraticCurveTo(42, 168, 74, 164);
+    ctx.lineTo(212, 154);
+    ctx.quadraticCurveTo(231, 152, 231, 175);
+    ctx.lineTo(231, 260);
+    ctx.quadraticCurveTo(231, 276, 213, 275);
+    ctx.lineTo(76, 253);
+    ctx.quadraticCurveTo(42, 248, 42, 222);
+    ctx.closePath();
+    ctx.fillStyle = "#cfc9ae";
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(470, 196);
+    ctx.quadraticCurveTo(470, 168, 438, 164);
+    ctx.lineTo(300, 154);
+    ctx.quadraticCurveTo(281, 152, 281, 175);
+    ctx.lineTo(281, 260);
+    ctx.quadraticCurveTo(281, 276, 299, 275);
+    ctx.lineTo(436, 253);
+    ctx.quadraticCurveTo(470, 248, 470, 222);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "#9e987e";
+    ctx.lineWidth = 2;
+    [[98, 172, 94, 248], [150, 161, 148, 260], [362, 260, 374, 161], [414, 248, 420, 172], [72, 200, 230, 208], [282, 208, 440, 200]].forEach(([x1, y1, x2, y2]) => {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    });
+
+    // Fuselage.
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(224, 132);
+    ctx.bezierCurveTo(234, 129, 245, 128, 256, 128);
+    ctx.bezierCurveTo(267, 128, 278, 129, 288, 132);
+    ctx.lineTo(289, 274);
+    ctx.bezierCurveTo(289, 313, 278, 354, 266, 394);
+    ctx.lineTo(261, 412);
+    ctx.quadraticCurveTo(256, 425, 251, 412);
+    ctx.lineTo(246, 394);
+    ctx.bezierCurveTo(234, 354, 223, 313, 223, 274);
+    ctx.closePath();
+    ctx.fillStyle = "#cfc9ae";
+    ctx.fill();
+    ctx.stroke();
+
+    // Canopy and fuselage stripe.
+    ctx.beginPath();
+    ctx.ellipse(256, 198, 16, 29, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "#4fa9ee";
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(240, 198);
+    ctx.quadraticCurveTo(256, 168, 272, 198);
+    ctx.stroke();
+    ctx.strokeStyle = "#9fdbff";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(256, 170);
+    ctx.lineTo(256, 227);
+    ctx.stroke();
+
+    ctx.fillStyle = "#be2c2c";
+    ctx.fillRect(246, 296, 20, 116);
+
+    // Tailplanes.
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(126, 326);
+    ctx.quadraticCurveTo(126, 296, 158, 300);
+    ctx.lineTo(229, 312);
+    ctx.quadraticCurveTo(246, 315, 246, 333);
+    ctx.lineTo(246, 364);
+    ctx.quadraticCurveTo(246, 377, 230, 378);
+    ctx.lineTo(154, 373);
+    ctx.quadraticCurveTo(126, 371, 126, 346);
+    ctx.closePath();
+    ctx.fillStyle = "#cfc9ae";
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(386, 326);
+    ctx.quadraticCurveTo(386, 296, 354, 300);
+    ctx.lineTo(283, 312);
+    ctx.quadraticCurveTo(266, 315, 266, 333);
+    ctx.lineTo(266, 364);
+    ctx.quadraticCurveTo(266, 377, 282, 378);
+    ctx.lineTo(358, 373);
+    ctx.quadraticCurveTo(386, 371, 386, 346);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "#9e987e";
+    ctx.lineWidth = 2;
+    [[168, 314, 168, 375], [344, 314, 344, 375]].forEach(([x1, y1, x2, y2]) => {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    });
+
+    drawHinomaruRoundel(108, 204, 20);
+    drawHinomaruRoundel(404, 204, 20);
+    ctx.restore();
+
+    // Animated propeller. The whole enemy plane is rotated, so this appears at the nose facing the player.
+    ctx.save();
+    ctx.translate(0, -50);
+    ctx.rotate(spin || 0);
+    ctx.fillStyle = "rgba(43,43,43,0.18)";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 20, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 4, 20, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, 0, 3, 0, Math.PI * 2);
+    ctx.fillStyle = "#9a9a9a";
+    ctx.fill();
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  function drawHinomaruRoundel(x, y, radius) {
+    ctx.fillStyle = "#fff7ef";
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#c82424";
+    ctx.beginPath();
+    ctx.arc(x, y, radius * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
   function roundRect(x, y, width, height, radius) {
     ctx.beginPath();
     ctx.moveTo(x + radius, y);
@@ -1899,11 +2084,7 @@ function initAirplaneShooter() {
       .sort((a, b) => b.depth - a.depth)
       .forEach((enemy) => {
         const point = worldToScreen(enemy.x, enemy.depth);
-        drawPlaneShape(point.x, point.y, 0.28 * point.scale, "mustang", 0, {
-          enemy: true,
-          propMoving: true,
-          spin: state.propSpin
-        });
+        drawEnemyFighter(point.x, point.y, 0.28 * point.scale, state.propSpin);
       });
   }
 
