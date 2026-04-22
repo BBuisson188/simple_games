@@ -761,21 +761,11 @@ function initStarfighterSinistar() {
   }
 
   function drawDroidBoss() {
-    ctx.fillStyle = "#b8a47d";
-    ctx.strokeStyle = "#4f493d";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(0, 0, 56, 0.18 * Math.PI, 1.82 * Math.PI);
-    ctx.lineTo(24, 0);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = "#233542";
-    ctx.beginPath();
-    ctx.arc(-10, 0, 19, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#8ee7ff";
-    ctx.fillRect(26, -5, 28, 10);
+    ctx.save();
+    ctx.scale(1.08, 1.08);
+    ctx.translate(-64, -64);
+    drawDroidBossSprite(ctx);
+    ctx.restore();
   }
 
   function drawDestroyerBoss() {
@@ -1259,6 +1249,38 @@ function drawXwingSprite(context) {
   svgRect(context, 97, 89, 3.5, 6, null, "#31465a", 0.7);
 }
 
+function drawDroidBossSprite(context) {
+  svgPolygon(context, [[61, 38], [82, 38], [98, 31], [105, 36], [100, 43], [85, 45], [73, 45], [63, 41]], "#8a9096", "#39424a", 1.3);
+  svgPolygon(context, [[61, 90], [82, 90], [98, 97], [105, 92], [100, 85], [85, 83], [73, 83], [63, 87]], "#8a9096", "#39424a", 1.3);
+  svgPath(context, "M23 54 L76 54 L87 46 L98 46 L110 58 L110 70 L98 82 L87 82 L76 74 L23 74 L17 68 L17 60 Z", "#70767d", "#39424a", 2.2);
+  svgPath(context, "M28 58 L74 58 L84 52 L95 52 L103 59 L103 69 L95 76 L84 76 L74 70 L28 70 L24 66 L24 62 Z", "#8a9096", "#39424a", 1.5);
+  svgPolygon(context, [[45, 46], [58, 46], [67, 54], [67, 61], [56, 64], [45, 60]], "#6a7077", "#39424a", 1.6);
+  svgPolygon(context, [[45, 82], [58, 82], [67, 74], [67, 67], [56, 64], [45, 68]], "#6a7077", "#39424a", 1.6);
+  svgPolygon(context, [[34, 44], [45, 44], [49, 52], [49, 60], [39, 62], [34, 57]], "#6f757c", "#39424a", 1.6);
+  svgPolygon(context, [[34, 84], [45, 84], [49, 76], [49, 68], [39, 66], [34, 71]], "#6f757c", "#39424a", 1.6);
+  svgPath(context, "M14 52 L28 48 L39 48 L44 56 L44 72 L39 80 L28 80 L14 76 Z", "#666c73", "#39424a", 2);
+  [[14, 64, 5.8, 1.8], [18, 56, 3.8, 1.5], [18, 72, 3.8, 1.5], [25, 59, 3.4, 1.4], [25, 69, 3.4, 1.4]].forEach(([x, y, r, stroke]) => svgCircle(context, x, y, r, "#55b9ff", "#39424a", stroke));
+  svgPolygon(context, [[90, 50], [101, 50], [111, 59], [115, 64], [111, 69], [101, 78], [90, 78], [84, 64]], "#5f656c", "#39424a", 2);
+  svgPolygon(context, [[96, 46], [102, 46], [106, 56], [106, 72], [102, 82], [96, 82], [99, 64]], "#4f555c", "#39424a", 1.6);
+  svgLine(context, 108, 58, 117, 56, "#39424a", 2);
+  svgLine(context, 108, 70, 117, 72, "#39424a", 2);
+  svgCircle(context, 100, 58, 3.2, "#f04e4e", "#39424a", 1.2);
+  svgCircle(context, 100, 70, 3.2, "#f04e4e", "#39424a", 1.2);
+  svgPolygon(context, [[88, 46], [96, 36], [100, 36], [98, 46]], "#626870", "#39424a", 1.4);
+  svgPolygon(context, [[88, 82], [96, 92], [100, 92], [98, 82]], "#626870", "#39424a", 1.4);
+  [[30, 64, 94, 64, 1.1], [40, 54, 40, 74, 1], [53, 54, 53, 74, 1], [66, 54, 66, 74, 1], [79, 53, 79, 75, 1], [68, 38, 92, 31, 1], [68, 90, 92, 97, 1], [76, 47, 76, 34, 1], [76, 81, 76, 94, 1]].forEach(([x1, y1, x2, y2, width]) => svgLine(context, x1, y1, x2, y2, "#596169", width));
+  svgRect(context, 58, 59, 2, 6, "#55b9ff");
+  svgRect(context, 58, 63, 2, 6, "#55b9ff");
+  svgRect(context, 71, 44, 2, 5, "#55b9ff");
+  svgRect(context, 71, 79, 2, 5, "#55b9ff");
+  svgRect(context, 105, 36, 2, 4, "#55b9ff");
+  svgRect(context, 105, 88, 2, 4, "#55b9ff");
+  svgLine(context, 29, 59, 73, 59, "#a6adb2", 0.9);
+  svgLine(context, 29, 69, 73, 69, "#5b6168", 0.9);
+  svgLine(context, 64, 40, 97, 31, "#a6adb2", 0.9);
+  svgLine(context, 64, 88, 97, 97, "#a6adb2", 0.9);
+}
+
 function svgPath(context, d, fill, stroke, strokeWidth = 1) {
   const path = new Path2D(d);
   if (fill) {
@@ -1269,6 +1291,24 @@ function svgPath(context, d, fill, stroke, strokeWidth = 1) {
     context.strokeStyle = stroke;
     context.lineWidth = strokeWidth;
     context.stroke(path);
+  }
+}
+
+function svgPolygon(context, points, fill, stroke, strokeWidth = 1) {
+  context.beginPath();
+  points.forEach(([x, y], index) => {
+    if (index === 0) context.moveTo(x, y);
+    else context.lineTo(x, y);
+  });
+  context.closePath();
+  if (fill) {
+    context.fillStyle = fill;
+    context.fill();
+  }
+  if (stroke) {
+    context.strokeStyle = stroke;
+    context.lineWidth = strokeWidth;
+    context.stroke();
   }
 }
 
