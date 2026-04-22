@@ -1,6 +1,8 @@
 const ships = {
   falcon: { name: "Millennium Falcon", note: "Heavy freighter, double lasers, tougher handling.", radius: 18, acceleration: 520, drag: 0.978, maxSpeed: 255, laserCount: 2, laserSpread: 9 },
-  xwing: { name: "X-wing Fighter", note: "Quick starfighter, narrow profile, sharp control.", radius: 14, acceleration: 640, drag: 0.976, maxSpeed: 305, laserCount: 1, laserSpread: 0 }
+  xwing: { name: "X-wing Fighter", note: "Quick starfighter, narrow profile, sharp control.", radius: 14, acceleration: 640, drag: 0.976, maxSpeed: 305, laserCount: 1, laserSpread: 0 },
+  n1: { name: "Naboo N-1", note: "Sleek royal fighter, very fast with a slim profile.", radius: 13, acceleration: 665, drag: 0.976, maxSpeed: 318, laserCount: 1, laserSpread: 0 },
+  awing: { name: "A-wing Interceptor", note: "Compact rebel interceptor, agile with twin lasers.", radius: 15, acceleration: 690, drag: 0.974, maxSpeed: 325, laserCount: 2, laserSpread: 7 }
 };
 
 const stages = [
@@ -276,7 +278,7 @@ function initStarfighterSinistar() {
     state.enemyLasers = [];
     state.torpedoAvailable = true;
     state.bossLaserTimer = 1.1;
-    state.boss = { x: WORLD.width + 120, y: WORLD.height * 0.34, vx: -78, radius: bossRadius(stage().bossType), angle: Math.PI, type: stage().bossType, name: stage().bossName };
+    state.boss = makeBoss(stage());
     setMessage(`${stage().bossName} inbound`, stage().lockOn ? "Proton Torpedo armed. Aim close and fire." : "Proton Torpedo armed. No lock-on for the Death Star.", 3);
     updateHud();
   }
@@ -627,8 +629,15 @@ function initStarfighterSinistar() {
 
   function updateBoss(dt) {
     if (!state.boss) return;
-    if (state.boss.x > WORLD.width - 130) state.boss.x += state.boss.vx * dt;
-    else state.boss.y += Math.sin(performance.now() / 760) * 16 * dt;
+    if (state.boss.entering) {
+      state.boss.x += state.boss.vx * dt;
+      if ((state.boss.vx < 0 && state.boss.x <= state.boss.targetX) || (state.boss.vx > 0 && state.boss.x >= state.boss.targetX)) {
+        state.boss.x = state.boss.targetX;
+        state.boss.entering = false;
+      }
+    } else {
+      state.boss.y += Math.sin(performance.now() / 760) * 16 * dt;
+    }
     state.boss.angle = Math.atan2(state.player.y - state.boss.y, state.player.x - state.boss.x);
     if (state.mode === "boss" && difficulty().bossFire) {
       state.bossLaserTimer -= dt;
@@ -1276,6 +1285,18 @@ function drawShipShape(context, shipId, scale) {
     drawFalconSprite(context);
     return;
   }
+  if (shipId === "n1") {
+    context.rotate(Math.PI / 2);
+    context.translate(-64, -64);
+    drawNabooN1Sprite(context);
+    return;
+  }
+  if (shipId === "awing") {
+    context.rotate(Math.PI / 2);
+    context.translate(-64, -64);
+    drawAwingSprite(context);
+    return;
+  }
   context.rotate(Math.PI / 2);
   context.translate(-64, -64);
   drawXwingSprite(context);
@@ -1371,6 +1392,53 @@ function drawXwingSprite(context) {
   svgLine(context, 74, 85, 106, 85, "#31465a", 0.7);
   svgRect(context, 27.5, 89, 3.5, 6, null, "#31465a", 0.7);
   svgRect(context, 97, 89, 3.5, 6, null, "#31465a", 0.7);
+}
+
+function drawNabooN1Sprite(context) {
+  svgPath(context, "M61 16 L67 16 L70 74 L64 118 L58 74 Z", "#f2d213", "#5a4a08", 1.4);
+  svgPath(context, "M64 9 L70 74 L64 121 L58 74 Z", "#ffd91a", "#514307", 1.7);
+  svgPath(context, "M62 18 L66 18 L66 62 L62 62 Z", "#f7f0a8", "#7a6a12", 0.8);
+  svgPath(context, "M15 31 L57 48 L59 64 L57 79 L15 97 L25 83 L42 72 L42 56 L25 45 Z", "#d7dad9", "#31383a", 1.6);
+  svgPath(context, "M113 31 L71 48 L69 64 L71 79 L113 97 L103 83 L86 72 L86 56 L103 45 Z", "#d7dad9", "#31383a", 1.6);
+  svgPath(context, "M19 33 L44 43 L43 52 L22 50 Z", "#edf0ef", "#596064", 0.8);
+  svgPath(context, "M109 33 L84 43 L85 52 L106 50 Z", "#edf0ef", "#596064", 0.8);
+  svgPath(context, "M19 95 L44 85 L43 76 L22 78 Z", "#edf0ef", "#596064", 0.8);
+  svgPath(context, "M109 95 L84 85 L85 76 L106 78 Z", "#edf0ef", "#596064", 0.8);
+  svgPath(context, "M36 50 L60 54 L60 74 L36 78 L31 70 L31 58 Z", "#ffd91a", "#7a6a12", 1.2);
+  svgPath(context, "M92 50 L68 54 L68 74 L92 78 L97 70 L97 58 Z", "#ffd91a", "#7a6a12", 1.2);
+  svgEllipse(context, 64, 67, 13, 10, "#c5c9c8", "#293133", 1.5);
+  svgEllipse(context, 64, 64, 8, 7, "#89c7df", "#293133", 1.2);
+  svgPath(context, "M72 64 L125 63 L125 65 L72 67 Z", "#d6a90b", "#6e5808", 0.8);
+  svgPath(context, "M56 64 L3 63 L3 65 L56 67 Z", "#d6a90b", "#6e5808", 0.8);
+  svgPath(context, "M31 27 L49 28 L49 40 L31 40 Z", "#cfd3d2", "#394246", 1.1);
+  svgPath(context, "M97 27 L79 28 L79 40 L97 40 Z", "#cfd3d2", "#394246", 1.1);
+  svgPath(context, "M31 101 L49 100 L49 88 L31 88 Z", "#cfd3d2", "#394246", 1.1);
+  svgPath(context, "M97 101 L79 100 L79 88 L97 88 Z", "#cfd3d2", "#394246", 1.1);
+  [[32, 64, 56, 64], [72, 64, 96, 64], [38, 55, 54, 56], [74, 56, 90, 55], [38, 73, 54, 72], [74, 72, 90, 73]].forEach((line) => svgLine(context, ...line, "#7b8425", 0.8));
+}
+
+function drawAwingSprite(context) {
+  svgPath(context, "M20 44 L66 18 L116 64 L66 110 L20 84 Z", "#a20f21", "#2a0b12", 2);
+  svgPath(context, "M28 48 L64 28 L106 64 L64 100 L28 80 Z", "#c8cecb", "#333b3d", 1.3);
+  svgPath(context, "M64 28 L116 64 L64 58 Z", "#b51225", "#2a0b12", 1.1);
+  svgPath(context, "M64 100 L116 64 L64 70 Z", "#8f0e20", "#2a0b12", 1.1);
+  svgPath(context, "M18 53 L48 54 L47 74 L18 75 L9 66 L9 62 Z", "#d4d8d6", "#333b3d", 1.5);
+  svgPath(context, "M45 45 L70 55 L98 61 L70 61 L44 57 Z", "#eef2f0", "#798183", 0.8);
+  svgPath(context, "M45 83 L70 73 L98 67 L70 67 L44 71 Z", "#eef2f0", "#798183", 0.8);
+  svgPath(context, "M34 54 L46 49 L48 79 L34 74 Z", "#ffffff", "#727b7e", 1);
+  svgPath(context, "M28 56 L42 58 L42 70 L28 72 L20 66 L20 62 Z", "#6fa8ca", "#283d4d", 1.3);
+  svgPath(context, "M42 49 L51 52 L51 76 L42 79 L40 72 L40 56 Z", "#b9c0bd", "#333b3d", 1);
+  svgPath(context, "M68 58 L123 62 L123 66 L68 70 Z", "#f3f5f2", "#333b3d", 1.1);
+  svgPath(context, "M95 55 L123 62 L95 62 Z", "#f9fbf8", "#333b3d", 0.8);
+  svgPath(context, "M95 73 L123 66 L95 66 Z", "#d6dbd8", "#333b3d", 0.8);
+  svgRect(context, 54, 30, 9, 18, "#75101d", "#2a0b12", 1);
+  svgRect(context, 54, 80, 9, 18, "#75101d", "#2a0b12", 1);
+  svgRoundedRect(context, 64, 37, 10, 5, 1, "#dfe4e1", "#333b3d", 0.8);
+  svgRoundedRect(context, 64, 86, 10, 5, 1, "#dfe4e1", "#333b3d", 0.8);
+  svgCircle(context, 64, 64, 5, "#9e1022", "#2a0b12", 1);
+  svgCircle(context, 65, 80, 2.5, "#eef2f0", "#333b3d", 0.9);
+  svgPath(context, "M79 61 L84 64 L79 67 L76 64 Z", "#f1d218", "#78670b", 0.7);
+  [[53, 58, 93, 62], [53, 70, 93, 66], [70, 45, 82, 54], [70, 83, 82, 74], [86, 57, 105, 61], [86, 71, 105, 67]].forEach((line) => svgLine(context, ...line, "#5b6264", 0.8));
 }
 
 function drawDroidBossSprite(context) {
@@ -1579,6 +1647,34 @@ function drawShipPreviews(root) {
     drawShipShape(context, preview.dataset.starshipPreview, 1.35);
     context.restore();
   });
+}
+
+function makeBoss(stageConfig) {
+  const radius = bossRadius(stageConfig.bossType);
+  if (stageConfig.bossType === "deathstar") {
+    return {
+      x: -120,
+      y: WORLD.height * 0.24,
+      vx: 78,
+      targetX: 130,
+      entering: true,
+      radius,
+      angle: 0,
+      type: stageConfig.bossType,
+      name: stageConfig.bossName
+    };
+  }
+  return {
+    x: WORLD.width + 120,
+    y: WORLD.height * 0.34,
+    vx: -78,
+    targetX: WORLD.width - 130,
+    entering: true,
+    radius,
+    angle: Math.PI,
+    type: stageConfig.bossType,
+    name: stageConfig.bossName
+  };
 }
 
 function randomEdgePoint() {
