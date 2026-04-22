@@ -13,9 +13,11 @@ const WORLD = { width: 900, height: 560 };
 const PLAYER_LASER_SPEED = 520;
 const ENEMY_LASER_SPEED = 260;
 const TORPEDO_SPEED = 520;
-const MAX_ALLOWED_HITS = 3;
+const MAX_ALLOWED_HITS = 6;
 const STARTING_ENEMY_LIMIT = 3;
-const NO_KILL_REINFORCEMENT_TIME = 3;
+const RESPAWN_AFTER_KILL_TIME = 2;
+const NO_KILL_REINFORCEMENT_TIME = 5;
+const LEADERBOARD_KEY = "miniGames.starfighterArenaLeaderboard";
 let currentStarfighterGame = null;
 
 function renderShipButtons() {
@@ -32,7 +34,10 @@ export function renderStarfighterSinistar() {
   if (typeof document !== "undefined") setTimeout(() => initStarfighterSinistar(), 0);
   return `
     <section class="panel game-panel star-panel">
-      <div class="toolbar"><button class="secondary-button" type="button" data-menu>Back to Menu</button></div>
+      <div class="toolbar">
+        <button class="secondary-button" type="button" data-menu>Back to Menu</button>
+        <button class="secondary-button" type="button" data-star-show-leaderboard>Leaderboard</button>
+      </div>
       <div class="star-game" data-selected-ship="xwing">
         <div class="game-overlay" hidden data-star-overlay></div>
         <div class="game-header"><div><h2>Starfighter Arena</h2><p class="intro">Choose a ship, blast TIE fighters and asteroids, then land one Proton Torpedo on the boss.</p></div></div>
@@ -47,7 +52,7 @@ export function renderStarfighterSinistar() {
             <div class="game-stats surface-stats star-stats" aria-live="polite">
               <span>Level <strong data-star-level>1</strong></span>
               <span>Score <strong data-star-score>0</strong></span>
-              <span>Hits <strong data-star-hits>0/3</strong></span>
+              <span>Hits <strong data-star-hits>0/6</strong></span>
               <span>Kills <strong data-star-kills>0/9</strong></span>
             </div>
             <div class="star-controls" aria-label="Starfighter controls">
@@ -91,7 +96,7 @@ function initStarfighterSinistar() {
     player: null, enemies: [], asteroids: [], playerLasers: [], enemyLasers: [], torpedo: null,
     bursts: [], stars: [], boss: null, torpedoAvailable: false, torpedoFired: false,
     spawnTimer: 0, enemyLimit: STARTING_ENEMY_LIMIT, noKillTimer: 0, laserCooldown: 0,
-    bossLaserTimer: 0, lastTime: 0, messageTimer: 0, deathCharge: 0
+    bossLaserTimer: 0, lastTime: 0, messageTimer: 0, deathCharge: 0, pausedMode: null
   };
   const stage = () => stages[state.level];
   const ship = () => ships[state.selectedShip];
@@ -117,6 +122,13 @@ function initStarfighterSinistar() {
   function hideOverlay() {
     overlayEl.hidden = true;
     overlayEl.innerHTML = "";
+    if (state.pausedMode) {
+      state.mode = state.pausedMode;
+      state.pausedMode = null;
+      state.running = true;
+      state.lastTime = 0;
+      requestAnimationFrame(loop);
+    }
   }
 
   function updateHud() {
@@ -280,7 +292,7 @@ function initStarfighterSinistar() {
     state.mode = "levelComplete";
     updateHud();
     if (state.level >= stages.length - 1) {
-      setOverlay("Death Star Destroyed", `<p>Final score: <strong>${state.score}</strong></p><p>The galaxy gets another sunrise.</p>`, `<button class="primary-button" type="button" data-star-restart>Play Again</button>`);
+      setOverlay("Death Star Destroyed", renderFinalScoreForm("Final score", state.score), `<button class="primary-button" type="button" data-star-save-score>Save Score</button><button class="secondary-button" type="button" data-star-restart>Play Again</button>`);
     } else {
       setOverlay("Level Complete", `<p>${stage().bossName} destroyed.</p><p>Score: <strong>${state.score}</strong></p>`, `<button class="primary-button" type="button" data-star-next>Next Level</button>`);
     }
@@ -290,7 +302,75 @@ function initStarfighterSinistar() {
     state.mode = "gameOver";
     state.running = false;
     updateHud();
-    setOverlay(title, `<p>${detail}</p><p>Final score: <strong>${state.score}</strong></p>`, `<button class="primary-button" type="button" data-star-restart>Play Again</button><button class="secondary-button" type="button" data-star-select-again>Choose Ship</button>`);
+    setOverlay(title, `<p>${detail}</p><p>TIE kills: <strong>${state.kills}</strong></p>${renderFinalScoreForm("Final score", state.score)}`, `<button class="primary-button" type="button" data-star-save-score>Save Score</button><button class="secondary-button" type="button" data-star-restart>Play Again</button><button class="secondary-button" type="button" data-star-select-again>Choose Ship</button>`);
+  }
+
+  function renderFinalScoreForm(label, total) {
+    return `
+      <div class="final-score-form">
+        <p><strong>${label}: ${total}</strong></p>
+        <label>
+          <span>Name</span>
+          <input data-player-name maxlength="16" autocomplete="off" placeholder="Ace">
+        </label>
+      </div>
+    `;
+  }
+
+  function getLeaderboard() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || "[]");
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveLeaderboard(entries) {
+    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries.slice(0, 10)));
+  }
+
+  function saveScoreFromOverlay() {
+    const nameInput = overlayEl.querySelector("[data-player-name]");
+    const name = String(nameInput?.value || "Ace").trim() || "Ace";
+    const entries = getLeaderboard();
+    entries.push({
+      name: name.slice(0, 16),
+      score: state.score,
+      level: state.level + 1,
+      kills: state.kills,
+      ship: ship().name,
+      createdAt: new Date().toISOString()
+    });
+    entries.sort((a, b) => b.score - a.score);
+    saveLeaderboard(entries);
+    showLeaderboard("Score Saved");
+  }
+
+  function showLeaderboard(title = "Leaderboard") {
+    if (["battle", "boss", "bossCharge"].includes(state.mode)) {
+      state.pausedMode = state.mode;
+      state.mode = "paused";
+      state.running = false;
+      input.fire = false;
+      resetJoystick();
+    }
+    const entries = getLeaderboard();
+    const rows = entries.length
+      ? entries.map((entry, index) => `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${escapeHtml(entry.name)}</td>
+          <td>${entry.score}</td>
+          <td>${entry.kills}</td>
+        </tr>
+      `).join("")
+      : `<tr><td colspan="4">No scores yet.</td></tr>`;
+    setOverlay(
+      title,
+      `<table class="leaderboard-table"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Kills</th></tr></thead><tbody>${rows}</tbody></table>`,
+      `<button class="primary-button" type="button" data-star-close-overlay>Close</button>`
+    );
   }
 
   function hitPlayer(reason) {
@@ -463,7 +543,7 @@ function initStarfighterSinistar() {
           laser.life = 0;
           state.kills += 1;
           state.noKillTimer = 0;
-          state.spawnTimer = 0;
+          state.spawnTimer = RESPAWN_AFTER_KILL_TIME;
           state.score += 150;
           addBurst(enemy.x, enemy.y, "#9be7ff", 16);
           updateHud();
@@ -764,6 +844,18 @@ function initStarfighterSinistar() {
       startGame();
       return true;
     }
+    if (target.closest("[data-star-show-leaderboard]")) {
+      showLeaderboard();
+      return true;
+    }
+    if (target.closest("[data-star-save-score]")) {
+      saveScoreFromOverlay();
+      return true;
+    }
+    if (target.closest("[data-star-close-overlay]")) {
+      hideOverlay();
+      return true;
+    }
     if (target.closest("[data-star-next]")) {
       nextLevel();
       return true;
@@ -1019,4 +1111,13 @@ function shortAngle(from, to) {
 
 function inBounds(item, margin) {
   return item.x > -margin && item.x < WORLD.width + margin && item.y > -margin && item.y < WORLD.height + margin;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }

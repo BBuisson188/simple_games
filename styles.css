@@ -959,6 +959,37 @@ select {
   color: #ffffff;
 }
 
+.star-panel .game-overlay {
+  align-items: end;
+  justify-items: center;
+  padding-top: 76px;
+}
+
+.star-panel .overlay-card {
+  margin-bottom: 12px;
+  background: rgba(13, 21, 36, 0.94);
+  border: 1px solid rgba(142, 231, 255, 0.26);
+  color: #eef6ff;
+}
+
+.star-panel .overlay-detail,
+.star-panel .final-score-form label {
+  color: #c8d6e3;
+}
+
+.star-panel .leaderboard-table {
+  background: rgba(6, 13, 25, 0.72);
+}
+
+.star-panel .leaderboard-table th,
+.star-panel .leaderboard-table td {
+  border-color: rgba(142, 231, 255, 0.18);
+}
+
+.star-panel .leaderboard-table th {
+  color: #ffffff;
+}
+
 .star-controls {
   position: absolute;
   inset: auto 12px 12px;

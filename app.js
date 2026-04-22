@@ -3,7 +3,7 @@ import { renderAirplaneShooter } from "./games/airplane-shooter.js";
 import { renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
 import { renderPlaceholder } from "./games/placeholders.js";
 
-const APP_VERSION = "v26";
+const APP_VERSION = "v27";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
 
@@ -85,6 +85,12 @@ app.addEventListener("click", (event) => {
   if (menuButton) {
     renderMenu();
   }
+});
+
+app.addEventListener("pointerdown", (event) => {
+  if (!event.target.closest("[data-menu]")) return;
+  event.preventDefault();
+  renderMenu();
 });
 
 if ("serviceWorker" in navigator) {
