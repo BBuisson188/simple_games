@@ -3,7 +3,7 @@ import { renderAirplaneShooter } from "./games/airplane-shooter.js";
 import { renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
 import { renderPlaceholder } from "./games/placeholders.js";
 
-const APP_VERSION = "v32";
+const APP_VERSION = "v33";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
 

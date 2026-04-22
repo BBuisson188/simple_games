@@ -4,9 +4,9 @@ const ships = {
 };
 
 const stages = [
-  { name: "Trade Federation Ambush", bossName: "Droid Control Ship", bossType: "droid", killsNeeded: 9, enemyRate: 1.25, enemySpeed: 72, asteroidCount: 12, lockOn: true },
-  { name: "Imperial Blockade", bossName: "Imperial Star Destroyer", bossType: "destroyer", killsNeeded: 13, enemyRate: 1, enemySpeed: 84, asteroidCount: 15, lockOn: true },
-  { name: "Death Star Run", bossName: "Death Star", bossType: "deathstar", killsNeeded: 16, enemyRate: 0.82, enemySpeed: 96, asteroidCount: 18, lockOn: false }
+  { name: "Trade Federation Ambush", bossName: "Droid Control Ship", bossType: "droid", killsNeeded: 9, enemyRate: 1.25, enemySpeed: 72, asteroidCount: 12, lockOn: true, respawnAfterKill: 2.15, noKillReinforcement: 5.5 },
+  { name: "Imperial Blockade", bossName: "Imperial Star Destroyer", bossType: "destroyer", killsNeeded: 13, enemyRate: 1, enemySpeed: 86, asteroidCount: 15, lockOn: true, respawnAfterKill: 1.65, noKillReinforcement: 4.4 },
+  { name: "Death Star Run", bossName: "Death Star", bossType: "deathstar", killsNeeded: 16, enemyRate: 0.78, enemySpeed: 102, asteroidCount: 18, lockOn: false, respawnAfterKill: 1.15, noKillReinforcement: 3.4 }
 ];
 
 const WORLD = { width: 900, height: 560 };
@@ -15,8 +15,6 @@ const ENEMY_LASER_SPEED = 260;
 const TORPEDO_SPEED = 520;
 const MAX_ALLOWED_HITS = 6;
 const STARTING_ENEMY_LIMIT = 3;
-const RESPAWN_AFTER_KILL_TIME = 2;
-const NO_KILL_REINFORCEMENT_TIME = 5;
 const LEADERBOARD_KEY = "miniGames.starfighterArenaLeaderboard";
 const COUNTDOWN_TIME = 3.8;
 const EXPLOSION_SEQUENCE_TIME = 3.6;
@@ -240,7 +238,7 @@ function initStarfighterSinistar() {
     state.enemyLasers = [];
     state.torpedoAvailable = true;
     state.bossLaserTimer = 1.1;
-    state.boss = { x: WORLD.width + 120, y: WORLD.height * 0.34, vx: -78, radius: stage().bossType === "deathstar" ? 68 : 58, angle: Math.PI, type: stage().bossType, name: stage().bossName };
+    state.boss = { x: WORLD.width + 120, y: WORLD.height * 0.34, vx: -78, radius: bossRadius(stage().bossType), angle: Math.PI, type: stage().bossType, name: stage().bossName };
     setMessage(`${stage().bossName} inbound`, stage().lockOn ? "Proton Torpedo armed. Aim close and fire." : "Proton Torpedo armed. No lock-on for the Death Star.", 3);
     updateHud();
   }
@@ -493,7 +491,7 @@ function initStarfighterSinistar() {
 
   function updateEnemyReinforcements(dt) {
     state.noKillTimer += dt;
-    if (state.noKillTimer >= NO_KILL_REINFORCEMENT_TIME) {
+    if (state.noKillTimer >= stage().noKillReinforcement) {
       state.enemyLimit += 1;
       state.noKillTimer = 0;
       state.spawnTimer = 0;
@@ -622,7 +620,7 @@ function initStarfighterSinistar() {
           laser.life = 0;
           state.kills += 1;
           state.noKillTimer = 0;
-          state.spawnTimer = RESPAWN_AFTER_KILL_TIME;
+          state.spawnTimer = stage().respawnAfterKill;
           state.score += 150;
           addBurst(enemy.x, enemy.y, "#9be7ff", 16);
           updateHud();
@@ -762,28 +760,18 @@ function initStarfighterSinistar() {
 
   function drawDroidBoss() {
     ctx.save();
-    ctx.scale(1.08, 1.08);
+    ctx.scale(1.45, 1.45);
     ctx.translate(-64, -64);
     drawDroidBossSprite(ctx);
     ctx.restore();
   }
 
   function drawDestroyerBoss() {
-    ctx.fillStyle = "#aeb7bc";
-    ctx.strokeStyle = "#4a555d";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(72, 0);
-    ctx.lineTo(-62, -45);
-    ctx.lineTo(-35, 0);
-    ctx.lineTo(-62, 45);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = "#78858d";
-    ctx.fillRect(-15, -13, 32, 26);
-    ctx.fillRect(-28, -26, 20, 14);
-    ctx.fillRect(-28, 12, 20, 14);
+    ctx.save();
+    ctx.scale(1.28, 1.28);
+    ctx.translate(-64, -64);
+    drawStarDestroyerSprite(ctx);
+    ctx.restore();
   }
 
   function drawDeathStarBoss() {
@@ -1122,6 +1110,7 @@ function initStarfighterSinistar() {
 function drawShipShape(context, shipId, scale) {
   context.scale(scale * 0.52, scale * 0.52);
   if (shipId === "falcon") {
+    context.rotate(Math.PI / 2);
     context.translate(-64, -64);
     drawFalconSprite(context);
     return;
@@ -1137,52 +1126,40 @@ function ctxMove(context, points) {
 }
 
 function drawFalconSprite(context) {
-  svgEllipse(context, 52, 64, 35, 33, "#c9c9c9", "#565656", 2.4);
-  svgEllipse(context, 53, 64, 23, 22, "#d7d7d7", "#777777", 1.4);
-  svgPath(context, "M22 51 Q33 30 55 30 Q76 31 86 51 L78 58 Q67 47 53 47 Q38 47 30 58 Z", "#d6d6d6", "#565656", 1.8);
-  svgPath(context, "M22 77 Q33 98 55 98 Q76 97 86 77 L78 70 Q67 81 53 81 Q38 81 30 70 Z", "#bdbdbd", "#565656", 1.8);
-  svgPath(context, "M64 54 L92 54 L110 46 L116 52 L116 60 L104 63 L92 63 L64 62 Z", "#d1d1d1", "#565656", 2.2);
-  svgPath(context, "M64 66 L92 66 L104 65 L116 68 L116 76 L110 82 L92 74 L64 74 Z", "#d1d1d1", "#565656", 2.2);
-  svgRect(context, 68, 56.5, 18, 4.5, "#a8a8a8");
-  svgRect(context, 68, 67, 18, 4.5, "#a8a8a8");
-  svgRect(context, 86, 61.5, 8, 5, "#8e8e8e");
-  svgPath(context, "M84 74 L102 83 L104 92 L98 98 L87 95 L80 82 Z", "#bfbfbf", "#565656", 2);
-  svgEllipse(context, 103.5, 91, 8.5, 11, "#cfcfcf", "#565656", 2);
-  svgPath(context, "M97 91 Q103.5 81 110 91 Q103.5 101 97 91 Z", "#4a5563", "#303947", 1.5);
-  svgLine(context, 103.5, 80, 103.5, 102, "#d9ecff", 1);
-  svgLine(context, 96, 91, 111, 91, "#d9ecff", 1);
-  svgLine(context, 98, 85, 109, 97, "#d9ecff", 0.8);
-  svgLine(context, 109, 85, 98, 97, "#d9ecff", 0.8);
-  svgRect(context, 62, 34, 14, 10, "#c7c7c7", "#565656", 1.8);
-  svgRect(context, 66, 37, 6, 4, "#9a9a9a");
-  svgRect(context, 67, 81, 12, 7, "#c2c2c2", "#565656", 1.8);
-  svgRect(context, 20, 58.5, 11, 11, "#909090", "#565656", 1.6);
-  svgRect(context, 15, 59.5, 5, 9, "#79d7ff");
-  [21, 24.5, 28].forEach((x) => svgRect(context, x, 60.5, 2, 7, "#d8f3ff"));
-  svgPath(context, "M24 49 A33 33 0 0 0 24 79", null, "#565656", 2);
-  svgPath(context, "M82 49 A33 33 0 0 1 82 79", null, "#565656", 2);
-  [
-    "M53 31 L53 52", "M53 76 L53 97", "M31 64 L49 64", "M57 64 L73 64",
-    "M35 45 L46 54", "M35 83 L46 74", "M61 42 L57 52", "M62 86 L58 76",
-    "M74 49 L63 58", "M74 79 L63 70"
-  ].forEach((d) => svgPath(context, d, null, "#6f6f6f", 1.1));
-  [
-    "M25 53 A30 30 0 0 1 34 39", "M25 75 A30 30 0 0 0 34 89",
-    "M37 35 A30 30 0 0 1 51 31", "M37 93 A30 30 0 0 0 51 97",
-    "M57 31 A30 30 0 0 1 72 38", "M57 97 A30 30 0 0 0 72 90",
-    "M53 52 A12 12 0 0 1 64 64", "M53 76 A12 12 0 0 0 64 64",
-    "M41 64 A12 12 0 0 1 53 52", "M41 64 A12 12 0 0 0 53 76"
-  ].forEach((d) => svgPath(context, d, null, "#7d7d7d", 1.1));
-  svgRect(context, 26, 56, 8, 4, "#bdbdbd");
-  svgCircle(context, 39, 52, 2.4, "#b0b0b0");
-  svgCircle(context, 39, 76, 2.4, "#b0b0b0");
-  svgRect(context, 31, 71, 9, 4, "#bdbdbd");
-  svgRect(context, 45, 22, 8, 16, "#bdbdbd", "#565656", 1.4);
-  [47, 50].forEach((x) => svgLine(context, x, 24, x, 36, "#6f6f6f", 0.8));
-  [[43, 91, 50, 98], [47, 89, 55, 97], [51, 87, 59, 95], [56, 85, 63, 92], [46, 100, 59, 100]].forEach((line) => svgLine(context, ...line, "#6f6f6f", 1));
-  svgRect(context, 76, 45, 5, 3, "#9e9e9e");
-  svgRect(context, 76, 79, 5, 3, "#9e9e9e");
-  svgRect(context, 64, 59, 3, 10, "#a4a4a4");
+  svgPath(context, "M28 105 Q64 119 100 105 L96 114 Q64 126 32 114 Z", "#8f9498", "#111315", 2);
+  svgPath(context, "M34 109 Q64 119 94 109", null, "#1b1d20", 1.2);
+  [[43, 111, 42, 118], [52, 113, 51, 121], [64, 114, 64, 123], [76, 113, 77, 121], [85, 111, 86, 118]].forEach((line) => svgLine(context, ...line, "#202326", 1));
+  svgPath(context, "M44 8 L53 8 L54 67 L38 70 L36 46 Z", "#b7bbbc", "#111315", 2.4);
+  svgPath(context, "M75 8 L84 8 L92 46 L90 70 L74 67 Z", "#b7bbbc", "#111315", 2.4);
+  svgPath(context, "M55 24 H73 V69 H55 Z", "#aeb3b5", "#111315", 2);
+  svgRect(context, 59, 31, 10, 24, "#c6cacc", "#111315", 1.5);
+  [35, 38, 41, 44, 47, 50].forEach((y) => svgLine(context, 60, y, 68, y, "#1b1d20", 1));
+  svgPath(context, "M15 73 Q20 49 43 42 Q53 39 64 39 Q75 39 85 42 Q108 49 113 73 L113 90 Q106 111 82 119 Q64 125 46 119 Q22 111 15 90 Z", "#b8bcbd", "#111315", 2.6);
+  svgLine(context, 18, 74, 110, 74, "#111315", 2.2);
+  svgLine(context, 18, 88, 110, 88, "#111315", 2.2);
+  svgPath(context, "M23 60 Q64 43 105 60", null, "#303438", 1.3);
+  svgPath(context, "M26 101 Q64 119 102 101", null, "#303438", 1.3);
+  svgCircle(context, 64, 82, 18, "#9ea3a5", "#111315", 2.4);
+  svgCircle(context, 64, 82, 10, "#bcc0c1", "#111315", 1.6);
+  svgRoundedRect(context, 59, 65, 10, 20, 3, "#8c9193", "#111315", 1.8);
+  [[64, 64, 64, 45], [50, 69, 29, 52], [78, 69, 99, 52], [46, 82, 19, 82], [82, 82, 109, 82], [50, 95, 31, 110], [78, 95, 97, 110], [57, 99, 52, 118], [71, 99, 76, 118]].forEach((line) => svgLine(context, ...line, "#22262a", 1.2));
+  svgRoundedRect(context, 27, 79, 13, 5, 1, "#c8cccd", "#111315", 1.1);
+  svgRoundedRect(context, 88, 79, 13, 5, 1, "#c8cccd", "#111315", 1.1);
+  svgRoundedRect(context, 31, 92, 9, 4, 1, "#c8cccd", "#111315", 1.1);
+  svgRoundedRect(context, 88, 92, 9, 4, 1, "#c8cccd", "#111315", 1.1);
+  [43, 85].forEach((x) => svgCircle(context, x, 54, 3.2, "#c8cccd", "#111315", 1.1));
+  [43, 85].forEach((x) => svgCircle(context, x, 104, 2.4, "#c8cccd", "#111315", 1.1));
+  svgPath(context, "M43 98 L52 95 L57 108 L47 112 Z", "#6e7375", "#111315", 1);
+  svgPath(context, "M71 108 L76 95 L85 98 L81 112 Z", "#6e7375", "#111315", 1);
+  svgPath(context, "M58 100 H70 L73 113 H55 Z", "#6e7375", "#111315", 1);
+  [[45, 101, 55, 98], [46, 104, 56, 101], [73, 101, 83, 104], [72, 104, 82, 107], [60, 103, 70, 103], [59, 107, 71, 107]].forEach((line) => svgLine(context, ...line, "#303438", 0.8));
+  svgPath(context, "M91 66 L118 53 L124 58 L124 70 L118 75 L91 86 L87 79 L106 68 L87 74 Z", "#9ca1a3", "#111315", 2);
+  svgPath(context, "M111 55 L122 55 L125 60 L125 68 L122 73 L111 73 Z", "#b3b7b8", "#111315", 2);
+  [59, 63, 67].forEach((y) => svgLine(context, 114, y, 122, y, "#111315", 1));
+  svgCircle(context, 38, 31, 4, "#9ea3a5", "#111315", 1.5);
+  svgCircle(context, 90, 31, 4, "#9ea3a5", "#111315", 1.5);
+  svgCircle(context, 34, 43, 3.5, "#9ea3a5", "#111315", 1.4);
+  svgCircle(context, 94, 43, 3.5, "#9ea3a5", "#111315", 1.4);
 }
 
 function drawXwingSprite(context) {
@@ -1267,6 +1244,38 @@ function drawDroidBossSprite(context) {
   svgLine(context, 64, 88, 97, 97, "#a6adb2", 0.9);
 }
 
+function drawStarDestroyerSprite(context) {
+  svgPath(context, "M14 64 L109 34 L119 64 L109 94 Z", "#e5e8eb", "#39424a", 1.8);
+  svgPath(context, "M18 64 L42 56 L42 72 Z", "#c8cdd2", "#39424a", 1.4);
+  svgLine(context, 17, 64, 112, 64, "#6d747b", 1.2);
+  svgPath(context, "M42 56 L72 47 L101 39 L93 58 L58 60 Z", "#d2d7dc", "#39424a", 1);
+  svgPath(context, "M42 72 L58 68 L93 70 L101 89 L72 81 Z", "#d2d7dc", "#39424a", 1);
+  [[43, 56, 43, 72], [57, 51, 57, 77], [71, 47, 71, 81], [88, 42, 88, 86], [32, 61, 91, 44], [32, 67, 91, 84], [49, 60, 104, 43], [49, 68, 104, 85]].forEach((line) => svgLine(context, ...line, "#7a8289", 0.9));
+  [50, 82].forEach((x) => {
+    svgCircle(context, x, x === 50 ? 53 : 52, 2.4, "#c4c9ce", "#39424a", 1);
+    svgCircle(context, x, x === 50 ? 75 : 76, 2.4, "#c4c9ce", "#39424a", 1);
+  });
+  svgRoundedRect(context, 97, 47, 8, 4, 1, "#aeb5bb", "#39424a", 1);
+  svgRoundedRect(context, 97, 77, 8, 4, 1, "#aeb5bb", "#39424a", 1);
+  svgPath(context, "M73 50 L94 50 L100 56 L100 72 L94 78 L73 78 L68 72 L68 56 Z", "#c7ccd1", "#39424a", 1.8);
+  svgPath(context, "M78 53 L94 53 L98 58 L98 70 L94 75 L78 75 L74 70 L74 58 Z", "#d7dce0", "#39424a", 1.3);
+  svgPath(context, "M82 55 L96 55 L99 60 L99 68 L96 73 L82 73 L79 68 L79 60 Z", "#f0f2f4", "#39424a", 1.2);
+  svgPath(context, "M85 58 L99 58 L103 61 L103 67 L99 70 L85 70 L82 67 L82 61 Z", "#d5dade", "#39424a", 1.2);
+  svgRoundedRect(context, 87, 62, 11, 3, 1, "#89d7ff", "#39424a", 0.8);
+  svgCircle(context, 89, 57, 2.4, "#dfe3e6", "#39424a", 1);
+  svgCircle(context, 98, 57, 2.4, "#dfe3e6", "#39424a", 1);
+  svgRect(context, 73, 59, 10, 10, "#c1c7cc", "#39424a", 1.1);
+  svgPath(context, "M104 47 L112 49 L116 58 L116 70 L112 79 L104 81 L101 74 L101 54 Z", "#636a72", "#39424a", 1.8);
+  svgCircle(context, 113, 54, 2.8, "#67c8ff", "#39424a", 1);
+  svgCircle(context, 113, 64, 4.4, "#67c8ff", "#39424a", 1.2);
+  svgCircle(context, 113, 74, 2.8, "#67c8ff", "#39424a", 1);
+  svgCircle(context, 108, 59, 1.7, "#67c8ff", "#39424a", 0.8);
+  svgCircle(context, 108, 69, 1.7, "#67c8ff", "#39424a", 0.8);
+  svgLine(context, 28, 59, 90, 45, "#f6f8fa", 0.8);
+  svgLine(context, 28, 69, 90, 83, "#f6f8fa", 0.8);
+  svgLine(context, 76, 54, 95, 54, "#f6f8fa", 0.8);
+}
+
 function drawDeathStarSprite(context) {
   svgCircle(context, 64, 64, 56, "#b9b9b9", "#222222", 2);
   svgPath(context, "M18 48 Q64 28 110 48", null, "#555555", 0.8);
@@ -1333,6 +1342,30 @@ function svgRect(context, x, y, width, height, fill, stroke, strokeWidth = 1) {
     context.strokeStyle = stroke;
     context.lineWidth = strokeWidth;
     context.strokeRect(x, y, width, height);
+  }
+}
+
+function svgRoundedRect(context, x, y, width, height, radius, fill, stroke, strokeWidth = 1) {
+  const r = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.lineTo(x + width - r, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + r);
+  context.lineTo(x + width, y + height - r);
+  context.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  context.lineTo(x + r, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - r);
+  context.lineTo(x, y + r);
+  context.quadraticCurveTo(x, y, x + r, y);
+  context.closePath();
+  if (fill) {
+    context.fillStyle = fill;
+    context.fill();
+  }
+  if (stroke) {
+    context.strokeStyle = stroke;
+    context.lineWidth = strokeWidth;
+    context.stroke();
   }
 }
 
@@ -1424,6 +1457,13 @@ function shortAngle(from, to) {
 
 function inBounds(item, margin) {
   return item.x > -margin && item.x < WORLD.width + margin && item.y > -margin && item.y < WORLD.height + margin;
+}
+
+function bossRadius(type) {
+  if (type === "droid") return 84;
+  if (type === "destroyer") return 78;
+  if (type === "deathstar") return 68;
+  return 58;
 }
 
 function escapeHtml(value) {
