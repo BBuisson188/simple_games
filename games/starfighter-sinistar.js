@@ -19,6 +19,7 @@ const LEADERBOARD_KEY = "miniGames.starfighterArenaLeaderboard";
 const COUNTDOWN_TIME = 3.8;
 const EXPLOSION_SEQUENCE_TIME = 3.6;
 let currentStarfighterGame = null;
+let audioContext = null;
 
 function renderShipButtons() {
   return Object.entries(ships).map(([id, ship]) => `
@@ -180,6 +181,7 @@ function initStarfighterSinistar() {
   }
 
   function startGame() {
+    unlockAudio();
     state.running = true;
     state.level = 0;
     state.score = 0;
@@ -246,6 +248,7 @@ function initStarfighterSinistar() {
   function fireLaser() {
     if (!["battle", "boss"].includes(state.mode) || state.laserCooldown > 0) return;
     state.laserCooldown = 0.18;
+    playSound("laser");
     for (let i = 0; i < ship().laserCount; i += 1) {
       const offset = ship().laserCount === 1 ? 0 : (i === 0 ? -ship().laserSpread : ship().laserSpread);
       const side = perpendicular(state.player.angle);
@@ -262,6 +265,7 @@ function initStarfighterSinistar() {
 
   function fireTorpedo() {
     if (state.mode !== "boss" || !state.torpedoAvailable || state.torpedoFired || !state.boss) return;
+    unlockAudio();
     state.torpedoFired = true;
     state.torpedoAvailable = false;
     let angle = state.player.angle;
@@ -289,6 +293,7 @@ function initStarfighterSinistar() {
     state.enemyLasers = [];
     state.playerLasers = [];
     setMessage("Boss weapon charging", "The shot missed.", 1);
+    playSound("charge");
     updateHud();
   }
 
@@ -303,6 +308,7 @@ function initStarfighterSinistar() {
     state.playerLasers = [];
     state.torpedo = null;
     addBurst(state.explosionTarget.x, state.explosionTarget.y, "#ffef8a", 60, 1.2);
+    playSound("bigBoom");
     updateHud();
   }
 
@@ -331,6 +337,7 @@ function initStarfighterSinistar() {
       input.fire = false;
       resetJoystick();
       addBurst(state.player.x, state.player.y, "#ffb45c", 54, 1.1);
+      playSound("bigBoom");
       updateHud();
       return;
     }
@@ -413,6 +420,7 @@ function initStarfighterSinistar() {
     state.hits += 1;
     state.player.invulnerable = 1.1;
     addBurst(state.player.x, state.player.y, "#8ee7ff", 18);
+    playSound("hit");
     if (state.hits > MAX_ALLOWED_HITS) {
       gameOver("Ship Destroyed", reason);
     } else {
@@ -623,6 +631,7 @@ function initStarfighterSinistar() {
           state.spawnTimer = stage().respawnAfterKill;
           state.score += 150;
           addBurst(enemy.x, enemy.y, "#9be7ff", 16);
+          playSound("boom");
           updateHud();
         }
       });
@@ -635,6 +644,7 @@ function initStarfighterSinistar() {
             asteroid.dead = true;
             state.score += asteroid.radius > 24 ? 90 : 50;
             addBurst(asteroid.x, asteroid.y, "#d0c0a3", 20);
+            playSound("boom");
             updateHud();
           }
         }
@@ -652,6 +662,7 @@ function initStarfighterSinistar() {
       if (distance(enemy, state.player) < enemy.radius + ship().radius) {
         enemy.dead = true;
         addBurst(enemy.x, enemy.y, "#9be7ff", 12);
+        playSound("boom");
         hitPlayer("A TIE fighter clipped your ship.");
       }
     });
@@ -659,6 +670,7 @@ function initStarfighterSinistar() {
       if (distance(asteroid, state.player) < asteroid.radius + ship().radius - 3) {
         asteroid.dead = true;
         addBurst(asteroid.x, asteroid.y, "#d0c0a3", 18);
+        playSound("boom");
         hitPlayer("An asteroid smashed into your hull.");
       }
     });
@@ -672,7 +684,8 @@ function initStarfighterSinistar() {
 
   function fireBossLaser(offset) {
     const angle = Math.atan2(state.player.y - state.boss.y, state.player.x - state.boss.x) + rand(-0.72, 0.72) + offset * 0.12;
-    state.enemyLasers.push({ x: state.boss.x + Math.cos(angle) * state.boss.radius * 0.7, y: state.boss.y + Math.sin(angle) * state.boss.radius * 0.7, vx: Math.cos(angle) * ENEMY_LASER_SPEED * 0.9, vy: Math.sin(angle) * ENEMY_LASER_SPEED * 0.9, radius: 5, life: 2.1 });
+    const muzzle = bossMuzzlePoint(state.boss, 0.72);
+    state.enemyLasers.push({ x: muzzle.x, y: muzzle.y, vx: Math.cos(angle) * ENEMY_LASER_SPEED * 0.9, vy: Math.sin(angle) * ENEMY_LASER_SPEED * 0.9, radius: 5, life: 2.1 });
   }
 
   function addBurst(x, y, color, count, life = 0.55) {
@@ -769,6 +782,7 @@ function initStarfighterSinistar() {
   function drawDestroyerBoss() {
     ctx.save();
     ctx.scale(1.28, 1.28);
+    ctx.scale(-1, 1);
     ctx.translate(-64, -64);
     drawStarDestroyerSprite(ctx);
     ctx.restore();
@@ -896,13 +910,101 @@ function initStarfighterSinistar() {
 
   function drawSuperlaserCharge() {
     const progress = 1 - state.deathCharge;
+    if (state.boss.type === "deathstar") {
+      drawDeathStarSuperlaser(progress);
+      return;
+    }
+    if (state.boss.type === "destroyer") {
+      drawDestroyerSuperlaser(progress);
+      return;
+    }
+    const muzzle = bossMuzzlePoint(state.boss, 0.7);
     ctx.save();
     ctx.globalAlpha = 0.35 + progress * 0.55;
     ctx.strokeStyle = "#58ff73";
-    ctx.lineWidth = 12 + progress * 22;
+    ctx.lineWidth = 7 + progress * 10;
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(state.boss.x, state.boss.y);
+    ctx.moveTo(muzzle.x, muzzle.y);
+    ctx.lineTo(state.player.x, state.player.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawDestroyerSuperlaser(progress) {
+    const tip = bossMuzzlePoint(state.boss, 0.86);
+    const side = perpendicular(state.boss.angle);
+    const baseDistance = state.boss.radius * 0.72;
+    const gatherDistance = state.boss.radius * 0.18;
+    const chargeAlpha = 0.35 + progress * 0.55;
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.globalAlpha = chargeAlpha;
+    [-38, -14, 14, 38].forEach((offset, index) => {
+      const start = {
+        x: state.boss.x + Math.cos(state.boss.angle) * baseDistance + side.x * offset,
+        y: state.boss.y + Math.sin(state.boss.angle) * baseDistance + side.y * offset
+      };
+      const gather = {
+        x: state.boss.x + Math.cos(state.boss.angle) * gatherDistance + side.x * offset * (0.12 + progress * 0.08),
+        y: state.boss.y + Math.sin(state.boss.angle) * gatherDistance + side.y * offset * (0.12 + progress * 0.08)
+      };
+      ctx.strokeStyle = index % 2 ? "#baffc4" : "#58ff73";
+      ctx.lineWidth = 2 + progress * 2;
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(gather.x, gather.y);
+      ctx.lineTo(tip.x, tip.y);
+      ctx.stroke();
+    });
+    ctx.strokeStyle = "#62ff78";
+    ctx.lineWidth = 5 + progress * 8;
+    ctx.beginPath();
+    ctx.moveTo(tip.x, tip.y);
+    ctx.lineTo(state.player.x, state.player.y);
+    ctx.stroke();
+    ctx.strokeStyle = "#e7ffe9";
+    ctx.lineWidth = 1.5 + progress * 2;
+    ctx.beginPath();
+    ctx.moveTo(tip.x, tip.y);
+    ctx.lineTo(state.player.x, state.player.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawDeathStarSuperlaser(progress) {
+    const dish = deathStarDishPoint(state.boss);
+    const playerAngle = Math.atan2(state.player.y - dish.y, state.player.x - dish.x);
+    const converge = {
+      x: dish.x + Math.cos(playerAngle) * (30 + progress * 18),
+      y: dish.y + Math.sin(playerAngle) * (30 + progress * 18)
+    };
+    const ring = 20;
+    const beams = [-Math.PI * 0.58, 0, Math.PI * 0.58].map((offset) => ({
+      x: dish.x + Math.cos(playerAngle + Math.PI + offset) * ring,
+      y: dish.y + Math.sin(playerAngle + Math.PI + offset) * ring
+    }));
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.globalAlpha = 0.35 + progress * 0.6;
+    beams.forEach((beam, index) => {
+      ctx.strokeStyle = index === 1 ? "#dfffe4" : "#58ff73";
+      ctx.lineWidth = 2.5 + progress * 2.5;
+      ctx.beginPath();
+      ctx.moveTo(beam.x, beam.y);
+      ctx.lineTo(converge.x, converge.y);
+      ctx.stroke();
+    });
+    ctx.strokeStyle = "#58ff73";
+    ctx.lineWidth = 5 + progress * 8;
+    ctx.beginPath();
+    ctx.moveTo(converge.x, converge.y);
+    ctx.lineTo(state.player.x, state.player.y);
+    ctx.stroke();
+    ctx.strokeStyle = "#eaffed";
+    ctx.lineWidth = 1.5 + progress * 2;
+    ctx.beginPath();
+    ctx.moveTo(converge.x, converge.y);
     ctx.lineTo(state.player.x, state.player.y);
     ctx.stroke();
     ctx.restore();
@@ -1024,6 +1126,7 @@ function initStarfighterSinistar() {
 
   function keyDown(event) {
     if (!canvas.isConnected) return;
+    if (isTextEntry(event.target)) return;
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) {
       input.keys.add(event.code);
       event.preventDefault();
@@ -1040,6 +1143,7 @@ function initStarfighterSinistar() {
   }
 
   function keyUp(event) {
+    if (isTextEntry(event.target)) return;
     input.keys.delete(event.code);
     if (event.code === "Space") input.fire = false;
   }
@@ -1464,6 +1568,98 @@ function bossRadius(type) {
   if (type === "destroyer") return 78;
   if (type === "deathstar") return 68;
   return 58;
+}
+
+function bossMuzzlePoint(boss, distanceRatio = 0.72) {
+  return {
+    x: boss.x + Math.cos(boss.angle) * boss.radius * distanceRatio,
+    y: boss.y + Math.sin(boss.angle) * boss.radius * distanceRatio
+  };
+}
+
+function deathStarDishPoint(boss) {
+  const scale = 1.08;
+  const localX = (43 - 64) * scale;
+  const localY = (38 - 64) * scale;
+  return rotateLocalPoint(boss.x, boss.y, localX, localY, boss.angle);
+}
+
+function rotateLocalPoint(originX, originY, localX, localY, angle) {
+  return {
+    x: originX + Math.cos(angle) * localX - Math.sin(angle) * localY,
+    y: originY + Math.sin(angle) * localX + Math.cos(angle) * localY
+  };
+}
+
+function isTextEntry(target) {
+  const element = target instanceof Element ? target : null;
+  return Boolean(element?.closest("input, textarea, select, [contenteditable='true']"));
+}
+
+function unlockAudio() {
+  if (typeof window === "undefined") return null;
+  const AudioCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtor) return null;
+  if (!audioContext) audioContext = new AudioCtor();
+  if (audioContext.state === "suspended") audioContext.resume();
+  return audioContext;
+}
+
+function playSound(type) {
+  const context = unlockAudio();
+  if (!context) return;
+  const now = context.currentTime;
+  const gain = context.createGain();
+  gain.connect(context.destination);
+  if (type === "laser") {
+    gain.gain.setValueAtTime(0.045, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    const osc = context.createOscillator();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(920, now);
+    osc.frequency.exponentialRampToValueAtTime(260, now + 0.08);
+    osc.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.085);
+    return;
+  }
+  if (type === "charge") {
+    gain.gain.setValueAtTime(0.025, now);
+    gain.gain.linearRampToValueAtTime(0.07, now + 0.45);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+    const osc = context.createOscillator();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(110, now);
+    osc.frequency.exponentialRampToValueAtTime(460, now + 0.8);
+    osc.connect(gain);
+    osc.start(now);
+    osc.stop(now + 0.95);
+    return;
+  }
+  const duration = type === "bigBoom" ? 0.72 : type === "hit" ? 0.18 : 0.32;
+  const volume = type === "bigBoom" ? 0.11 : type === "hit" ? 0.055 : 0.075;
+  gain.gain.setValueAtTime(volume, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+  const osc = context.createOscillator();
+  osc.type = type === "hit" ? "triangle" : "sawtooth";
+  osc.frequency.setValueAtTime(type === "hit" ? 180 : 120, now);
+  osc.frequency.exponentialRampToValueAtTime(type === "bigBoom" ? 28 : 45, now + duration);
+  osc.connect(gain);
+  osc.start(now);
+  osc.stop(now + duration);
+  if (type !== "hit") {
+    const crackle = context.createOscillator();
+    const crackleGain = context.createGain();
+    crackle.type = "square";
+    crackle.frequency.setValueAtTime(44, now);
+    crackle.frequency.exponentialRampToValueAtTime(18, now + duration * 0.75);
+    crackleGain.gain.setValueAtTime(volume * 0.35, now);
+    crackleGain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.75);
+    crackle.connect(crackleGain);
+    crackleGain.connect(context.destination);
+    crackle.start(now);
+    crackle.stop(now + duration * 0.75);
+  }
 }
 
 function escapeHtml(value) {
