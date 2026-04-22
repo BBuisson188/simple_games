@@ -18,6 +18,8 @@ const STARTING_ENEMY_LIMIT = 3;
 const RESPAWN_AFTER_KILL_TIME = 2;
 const NO_KILL_REINFORCEMENT_TIME = 5;
 const LEADERBOARD_KEY = "miniGames.starfighterArenaLeaderboard";
+const COUNTDOWN_TIME = 3.8;
+const EXPLOSION_SEQUENCE_TIME = 3.6;
 let currentStarfighterGame = null;
 
 function renderShipButtons() {
@@ -96,7 +98,8 @@ function initStarfighterSinistar() {
     player: null, enemies: [], asteroids: [], playerLasers: [], enemyLasers: [], torpedo: null,
     bursts: [], stars: [], boss: null, torpedoAvailable: false, torpedoFired: false,
     spawnTimer: 0, enemyLimit: STARTING_ENEMY_LIMIT, noKillTimer: 0, laserCooldown: 0,
-    bossLaserTimer: 0, lastTime: 0, messageTimer: 0, deathCharge: 0, pausedMode: null
+    bossLaserTimer: 0, lastTime: 0, messageTimer: 0, deathCharge: 0, pausedMode: null,
+    countdownTimer: 0, explosionTimer: 0, explosionTarget: null, pendingGameOver: null
   };
   const stage = () => stages[state.level];
   const ship = () => ships[state.selectedShip];
@@ -144,7 +147,7 @@ function initStarfighterSinistar() {
   }
 
   function resetLevel() {
-    state.mode = "battle";
+    state.mode = "countdown";
     state.hits = 0;
     state.kills = 0;
     state.player = { x: WORLD.width / 2, y: WORLD.height / 2, vx: 0, vy: 0, angle: -Math.PI / 2, invulnerable: 1.3 };
@@ -164,13 +167,17 @@ function initStarfighterSinistar() {
     state.bossLaserTimer = 1.2;
     state.lastTime = 0;
     state.deathCharge = 0;
+    state.countdownTimer = COUNTDOWN_TIME;
+    state.explosionTimer = 0;
+    state.explosionTarget = null;
+    state.pendingGameOver = null;
     input.x = 0;
     input.y = 0;
     input.pointerId = null;
     input.firePointerId = null;
     knob.style.transform = "translate(-50%, -50%)";
     for (let i = 0; i < stage().asteroidCount; i += 1) spawnAsteroid(true);
-    setMessage(`Level ${state.level + 1}: ${stage().name}`, `${ship().name} ready. Destroy ${stage().killsNeeded} TIE fighters to draw out the boss.`, 3);
+    setMessage(`Level ${state.level + 1}: ${stage().name}`, "Get ready.", 3);
     updateHud();
   }
 
@@ -178,6 +185,7 @@ function initStarfighterSinistar() {
     state.running = true;
     state.level = 0;
     state.score = 0;
+    state.pausedMode = null;
     selectScreen.hidden = true;
     deck.hidden = false;
     hideOverlay();
@@ -196,6 +204,7 @@ function initStarfighterSinistar() {
   function restartToSelect() {
     state.mode = "select";
     state.running = false;
+    state.pausedMode = null;
     hideOverlay();
     selectScreen.hidden = false;
     deck.hidden = true;
@@ -286,11 +295,23 @@ function initStarfighterSinistar() {
 
   function winLevel() {
     state.score += 2500 + state.level * 1000 + Math.max(0, MAX_ALLOWED_HITS - state.hits) * 350;
-    addBurst(state.boss.x, state.boss.y, "#ffef8a", 44);
-    state.boss = null;
+    state.mode = "bossExploding";
+    state.running = true;
+    state.explosionTimer = EXPLOSION_SEQUENCE_TIME;
+    state.explosionTarget = { x: state.boss.x, y: state.boss.y, radius: state.boss.radius, type: state.boss.type };
+    state.enemies = [];
+    state.enemyLasers = [];
+    state.playerLasers = [];
     state.torpedo = null;
-    state.mode = "levelComplete";
+    addBurst(state.explosionTarget.x, state.explosionTarget.y, "#ffef8a", 60, 1.2);
     updateHud();
+  }
+
+  function showLevelComplete() {
+    state.mode = "levelComplete";
+    state.running = false;
+    state.boss = null;
+    state.explosionTarget = null;
     if (state.level >= stages.length - 1) {
       setOverlay("Death Star Destroyed", renderFinalScoreForm("Final score", state.score), `<button class="primary-button" type="button" data-star-save-score>Save Score</button><button class="secondary-button" type="button" data-star-restart>Play Again</button>`);
     } else {
@@ -299,6 +320,21 @@ function initStarfighterSinistar() {
   }
 
   function gameOver(title = "Ship Destroyed", detail = "Your fighter was lost.") {
+    if (state.mode !== "playerExploding") {
+      state.mode = "playerExploding";
+      state.running = true;
+      state.explosionTimer = EXPLOSION_SEQUENCE_TIME;
+      state.explosionTarget = { x: state.player.x, y: state.player.y, radius: ship().radius, type: "player" };
+      state.pendingGameOver = { title, detail };
+      state.enemies = [];
+      state.enemyLasers = [];
+      state.playerLasers = [];
+      input.fire = false;
+      resetJoystick();
+      addBurst(state.player.x, state.player.y, "#ffb45c", 54, 1.1);
+      updateHud();
+      return;
+    }
     state.mode = "gameOver";
     state.running = false;
     updateHud();
@@ -369,7 +405,7 @@ function initStarfighterSinistar() {
     setOverlay(
       title,
       `<table class="leaderboard-table"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Kills</th></tr></thead><tbody>${rows}</tbody></table>`,
-      `<button class="primary-button" type="button" data-star-close-overlay>Close</button>`
+      `<button class="primary-button" type="button" data-star-select-again>Play Again</button><button class="secondary-button" type="button" data-star-close-overlay>Close</button>`
     );
   }
 
@@ -388,9 +424,23 @@ function initStarfighterSinistar() {
   }
 
   function update(dt) {
-    if (!["battle", "boss", "bossCharge"].includes(state.mode)) return;
+    if (!["countdown", "battle", "boss", "bossCharge", "bossExploding", "playerExploding"].includes(state.mode)) return;
     state.messageTimer -= dt;
     if (state.messageTimer <= 0) messageEl.classList.remove("is-visible");
+    if (state.mode === "countdown") {
+      updateCountdown(dt);
+      updateStars();
+      updateAsteroids(dt);
+      updateBursts(dt);
+      return;
+    }
+    if (state.mode === "bossExploding" || state.mode === "playerExploding") {
+      updateExplosionSequence(dt);
+      updateStars();
+      updateAsteroids(dt);
+      updateBursts(dt);
+      return;
+    }
     state.laserCooldown = Math.max(0, state.laserCooldown - dt);
     if (input.fire) fireLaser();
     updateStars();
@@ -409,6 +459,34 @@ function initStarfighterSinistar() {
     if (state.mode === "bossCharge") {
       state.deathCharge -= dt;
       if (state.deathCharge <= 0) gameOver("Superlaser Strike", `${stage().bossName} returned fire after the missed torpedo.`);
+    }
+  }
+
+  function updateCountdown(dt) {
+    state.countdownTimer -= dt;
+    if (state.countdownTimer <= 0) {
+      state.mode = "battle";
+      state.lastTime = 0;
+      setMessage("Go", "Blast TIE fighters and watch the asteroids.", 1);
+    }
+  }
+
+  function updateExplosionSequence(dt) {
+    state.explosionTimer -= dt;
+    const target = state.explosionTarget;
+    if (target && Math.random() < 0.38) {
+      const angle = Math.random() * Math.PI * 2;
+      const spread = rand(4, target.radius * 1.2 + 18);
+      addBurst(target.x + Math.cos(angle) * spread, target.y + Math.sin(angle) * spread, Math.random() > 0.45 ? "#ffef8a" : "#ff7a3d", 12, rand(0.7, 1.3));
+    }
+    if (state.explosionTimer <= 0) {
+      if (state.mode === "bossExploding") {
+        showLevelComplete();
+      } else {
+        const pending = state.pendingGameOver || { title: "Ship Destroyed", detail: "Your fighter was lost." };
+        state.mode = "playerExploding";
+        gameOver(pending.title, pending.detail);
+      }
     }
   }
 
@@ -598,14 +676,15 @@ function initStarfighterSinistar() {
     state.enemyLasers.push({ x: state.boss.x + Math.cos(angle) * state.boss.radius * 0.7, y: state.boss.y + Math.sin(angle) * state.boss.radius * 0.7, vx: Math.cos(angle) * ENEMY_LASER_SPEED * 0.9, vy: Math.sin(angle) * ENEMY_LASER_SPEED * 0.9, radius: 5, life: 2.1 });
   }
 
-  function addBurst(x, y, color, count) {
+  function addBurst(x, y, color, count, life = 0.55) {
     state.bursts.push({
       color,
-      life: 0.55,
+      life,
+      maxLife: life,
       parts: Array.from({ length: count }, () => {
         const angle = Math.random() * Math.PI * 2;
-        const speed = rand(40, 190);
-        return { x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed };
+        const speed = rand(40, 230);
+        return { x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, radius: rand(1.6, 3.6) };
       })
     });
   }
@@ -620,7 +699,9 @@ function initStarfighterSinistar() {
     if (state.boss) drawBoss(state.boss);
     if (state.torpedo) drawTorpedo(state.torpedo);
     state.bursts.forEach(drawBurst);
-    if (state.player) drawPlayerShip();
+    if (state.player && state.mode !== "playerExploding") drawPlayerShip();
+    if (state.mode === "countdown") drawCountdown();
+    if (state.mode === "bossExploding" || state.mode === "playerExploding") drawExplosionOverlay();
     if (state.mode === "bossCharge" && state.boss) drawSuperlaserCharge();
   }
 
@@ -801,14 +882,51 @@ function initStarfighterSinistar() {
   }
 
   function drawBurst(burst) {
-    ctx.globalAlpha = Math.max(0, burst.life / 0.55);
+    ctx.globalAlpha = Math.max(0, burst.life / burst.maxLife);
     ctx.fillStyle = burst.color;
     burst.parts.forEach((part) => {
       ctx.beginPath();
-      ctx.arc(part.x, part.y, 2.2, 0, Math.PI * 2);
+      ctx.arc(part.x, part.y, part.radius, 0, Math.PI * 2);
       ctx.fill();
     });
     ctx.globalAlpha = 1;
+  }
+
+  function drawCountdown() {
+    const remaining = Math.max(0, state.countdownTimer);
+    const label = remaining > 0.8 ? String(Math.ceil(remaining - 0.8)) : "GO";
+    ctx.save();
+    ctx.fillStyle = "rgba(5, 8, 16, 0.38)";
+    ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "900 96px system-ui, sans-serif";
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillStyle = label === "GO" ? "#8effa8" : "#ffffff";
+    ctx.strokeText(label, WORLD.width / 2, WORLD.height / 2);
+    ctx.fillText(label, WORLD.width / 2, WORLD.height / 2);
+    ctx.restore();
+  }
+
+  function drawExplosionOverlay() {
+    if (!state.explosionTarget) return;
+    const elapsed = EXPLOSION_SEQUENCE_TIME - state.explosionTimer;
+    const progress = clamp(elapsed / EXPLOSION_SEQUENCE_TIME, 0, 1);
+    const pulse = Math.sin(progress * Math.PI * 8) * 0.5 + 0.5;
+    ctx.save();
+    ctx.globalAlpha = 0.25 + pulse * 0.25;
+    ctx.strokeStyle = progress > 0.75 ? "#ffffff" : "#ffcf62";
+    ctx.lineWidth = 4 + progress * 12;
+    ctx.beginPath();
+    ctx.arc(state.explosionTarget.x, state.explosionTarget.y, 28 + progress * 130, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = Math.max(0, 0.7 - progress * 0.55);
+    ctx.fillStyle = "#fff3ba";
+    ctx.beginPath();
+    ctx.arc(state.explosionTarget.x, state.explosionTarget.y, 18 + progress * 55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   function drawSuperlaserCharge() {
@@ -831,7 +949,7 @@ function initStarfighterSinistar() {
     state.lastTime = timestamp;
     update(dt);
     draw();
-    if (["battle", "boss", "bossCharge"].includes(state.mode)) requestAnimationFrame(loop);
+    if (["countdown", "battle", "boss", "bossCharge", "bossExploding", "playerExploding"].includes(state.mode)) requestAnimationFrame(loop);
   }
 
   function runButtonCommand(target) {
@@ -861,7 +979,7 @@ function initStarfighterSinistar() {
       return true;
     }
     if (target.closest("[data-star-restart]")) {
-      startGame();
+      restartToSelect();
       return true;
     }
     if (target.closest("[data-star-select-again]")) {
@@ -1006,58 +1124,171 @@ function initStarfighterSinistar() {
 }
 
 function drawShipShape(context, shipId, scale) {
-  context.scale(scale, scale);
+  context.scale(scale * 0.52, scale * 0.52);
   if (shipId === "falcon") {
-    context.fillStyle = "#d8d2bd";
-    context.strokeStyle = "#6d7069";
-    context.lineWidth = 2;
-    context.beginPath();
-    context.ellipse(0, 0, 21, 16, 0, 0, Math.PI * 2);
-    context.fill();
-    context.stroke();
-    context.fillStyle = "#b8b39f";
-    context.fillRect(1, -5, 25, 10);
-    context.fillStyle = "#8fb9c9";
-    context.beginPath();
-    context.arc(7, 0, 6, 0, Math.PI * 2);
-    context.fill();
-    context.strokeStyle = "#343a3d";
-    context.beginPath();
-    ctxMove(context, [[16, -8], [31, -17], [34, -10], [23, -4]]);
-    ctxMove(context, [[16, 8], [31, 17], [34, 10], [23, 4]]);
-    context.stroke();
-    context.fillStyle = "#f05d44";
-    context.fillRect(-22, -8, 5, 16);
+    context.translate(-64, -64);
+    drawFalconSprite(context);
     return;
   }
-  context.fillStyle = "#eceff1";
-  context.strokeStyle = "#56616b";
-  context.lineWidth = 2;
-  context.beginPath();
-  context.moveTo(28, 0);
-  context.lineTo(-16, -7);
-  context.lineTo(-21, 0);
-  context.lineTo(-16, 7);
-  context.closePath();
-  context.fill();
-  context.stroke();
-  context.strokeStyle = "#d04735";
-  context.lineWidth = 4;
-  context.beginPath();
-  ctxMove(context, [[-2, -8], [-25, -24]]);
-  ctxMove(context, [[-2, 8], [-25, 24]]);
-  ctxMove(context, [[5, -7], [25, -17]]);
-  ctxMove(context, [[5, 7], [25, 17]]);
-  context.stroke();
-  context.fillStyle = "#8bd9ff";
-  context.beginPath();
-  context.ellipse(6, 0, 8, 4, 0, 0, Math.PI * 2);
-  context.fill();
+  context.rotate(Math.PI / 2);
+  context.translate(-64, -64);
+  drawXwingSprite(context);
 }
 
 function ctxMove(context, points) {
   context.moveTo(points[0][0], points[0][1]);
   points.slice(1).forEach(([x, y]) => context.lineTo(x, y));
+}
+
+function drawFalconSprite(context) {
+  svgPath(context, "M64 54 L92 54 L110 46 L116 52 L116 60 L104 63 L92 63 L64 62 Z", "#d1d1d1", "#565656", 2.2);
+  svgPath(context, "M64 66 L92 66 L104 65 L116 68 L116 76 L110 82 L92 74 L64 74 Z", "#d1d1d1", "#565656", 2.2);
+  svgRect(context, 68, 56.5, 18, 4.5, "#a8a8a8");
+  svgRect(context, 68, 67, 18, 4.5, "#a8a8a8");
+  svgRect(context, 86, 61.5, 8, 5, "#8e8e8e");
+  svgPath(context, "M84 74 L102 83 L104 92 L98 98 L87 95 L80 82 Z", "#bfbfbf", "#565656", 2);
+  svgEllipse(context, 103.5, 91, 8.5, 11, "#cfcfcf", "#565656", 2);
+  svgPath(context, "M97 91 Q103.5 81 110 91 Q103.5 101 97 91 Z", "#4a5563", "#303947", 1.5);
+  svgLine(context, 103.5, 80, 103.5, 102, "#d9ecff", 1);
+  svgLine(context, 96, 91, 111, 91, "#d9ecff", 1);
+  svgLine(context, 98, 85, 109, 97, "#d9ecff", 0.8);
+  svgLine(context, 109, 85, 98, 97, "#d9ecff", 0.8);
+  svgRect(context, 62, 34, 14, 10, "#c7c7c7", "#565656", 1.8);
+  svgRect(context, 66, 37, 6, 4, "#9a9a9a");
+  svgRect(context, 67, 81, 12, 7, "#c2c2c2", "#565656", 1.8);
+  svgRect(context, 20, 58.5, 11, 11, "#909090", "#565656", 1.6);
+  svgRect(context, 15, 59.5, 5, 9, "#79d7ff");
+  [21, 24.5, 28].forEach((x) => svgRect(context, x, 60.5, 2, 7, "#d8f3ff"));
+  svgPath(context, "M24 49 A33 33 0 0 0 24 79", null, "#565656", 2);
+  svgPath(context, "M82 49 A33 33 0 0 1 82 79", null, "#565656", 2);
+  [
+    "M53 31 L53 52", "M53 76 L53 97", "M31 64 L49 64", "M57 64 L73 64",
+    "M35 45 L46 54", "M35 83 L46 74", "M61 42 L57 52", "M62 86 L58 76",
+    "M74 49 L63 58", "M74 79 L63 70"
+  ].forEach((d) => svgPath(context, d, null, "#6f6f6f", 1.1));
+  [
+    "M25 53 A30 30 0 0 1 34 39", "M25 75 A30 30 0 0 0 34 89",
+    "M37 35 A30 30 0 0 1 51 31", "M37 93 A30 30 0 0 0 51 97",
+    "M57 31 A30 30 0 0 1 72 38", "M57 97 A30 30 0 0 0 72 90",
+    "M53 52 A12 12 0 0 1 64 64", "M53 76 A12 12 0 0 0 64 64",
+    "M41 64 A12 12 0 0 1 53 52", "M41 64 A12 12 0 0 0 53 76"
+  ].forEach((d) => svgPath(context, d, null, "#7d7d7d", 1.1));
+  svgRect(context, 26, 56, 8, 4, "#bdbdbd");
+  svgCircle(context, 39, 52, 2.4, "#b0b0b0");
+  svgCircle(context, 39, 76, 2.4, "#b0b0b0");
+  svgRect(context, 31, 71, 9, 4, "#bdbdbd");
+  svgRect(context, 45, 22, 8, 16, "#bdbdbd", "#565656", 1.4);
+  [47, 50].forEach((x) => svgLine(context, x, 24, x, 36, "#6f6f6f", 0.8));
+  [[43, 91, 50, 98], [47, 89, 55, 97], [51, 87, 59, 95], [56, 85, 63, 92], [46, 100, 59, 100]].forEach((line) => svgLine(context, ...line, "#6f6f6f", 1));
+  svgRect(context, 76, 45, 5, 3, "#9e9e9e");
+  svgRect(context, 76, 79, 5, 3, "#9e9e9e");
+  svgRect(context, 64, 59, 3, 10, "#a4a4a4");
+}
+
+function drawXwingSprite(context) {
+  svgRect(context, 108, 42, 2, 38, "#d7dbde");
+  svgRect(context, 107, 50, 4, 2, "#748595", "#31465a", 0.8);
+  svgRect(context, 107, 60, 4, 7, "#f1c40f");
+  svgRect(context, 106, 80, 6, 20, "#d7dbde", "#31465a", 1);
+  svgRect(context, 105, 99, 8, 3, "#7d8f9b", "#31465a", 0.8);
+  svgLine(context, 106, 83, 112, 83, "#31465a", 0.7);
+  svgPath(context, "M22 85 L53 85 L53 106 Q37 104 22 98 Z", "#d7dbde", "#31465a", 1.2);
+  svgPath(context, "M106 85 L75 85 L75 106 Q91 104 106 98 Z", "#d7dbde", "#31465a", 1.2);
+  svgPath(context, "M22 85 L31 85 L31 99 L22 95 Z", "#ef4b3c");
+  svgPath(context, "M106 85 L97 85 L97 99 L106 95 Z", "#ef4b3c");
+  svgRect(context, 27.5, 85, 1.8, 12, "#f1c40f");
+  svgRect(context, 98.7, 85, 1.8, 12, "#f1c40f");
+  [[36, 85, 36, 102], [40, 85, 40, 104], [88, 85, 88, 102], [84, 85, 84, 104]].forEach((line) => svgLine(context, ...line, "#31465a", 0.7));
+  svgPath(context, "M33 92 L36 90 L36 98 L33 96 Z", null, "#31465a", 0.7);
+  svgPath(context, "M95 92 L92 90 L92 98 L95 96 Z", null, "#31465a", 0.7);
+  svgRect(context, 39, 78, 10, 18, "#cfd3d6", "#31465a", 1);
+  svgRect(context, 79, 78, 10, 18, "#cfd3d6", "#31465a", 1);
+  svgRect(context, 39, 78, 10, 3, "#9aa8ac");
+  svgRect(context, 79, 78, 10, 3, "#9aa8ac");
+  svgRect(context, 39, 79, 10, 1.5, "#ef4b3c");
+  svgRect(context, 79, 79, 10, 1.5, "#ef4b3c");
+  svgRect(context, 41.2, 96, 6, 18, "#d7dbde", "#31465a", 1);
+  svgRect(context, 80.8, 96, 6, 18, "#d7dbde", "#31465a", 1);
+  svgRect(context, 40.4, 114, 7.6, 3.5, "#7d8f9b", "#31465a", 0.8);
+  svgRect(context, 80, 114, 7.6, 3.5, "#7d8f9b", "#31465a", 0.8);
+  svgPath(context, "M58 10 Q59 8 64 8 Q69 8 70 10 L74 70 L74 101 Q74 111 64 111 Q54 111 54 101 L54 70 Z", "#d1d5d8", "#31465a", 1.4);
+  svgPath(context, "M58 10 Q59 8 64 8 Q69 8 70 10 L69 23 L59 23 Z", "#97a6aa", "#31465a", 1.2);
+  svgPath(context, "M59 23 L61 23 L57 67 L54.5 68.5 Z", "#ef4b3c");
+  svgPath(context, "M69 23 L67 23 L71 67 L73.5 68.5 Z", "#ef4b3c");
+  svgPath(context, "M61 41 Q61 37 64 37 Q67 37 67 41 L69 60 L66.5 64 L61.5 64 L59 60 Z", "#3f566f", "#31465a", 1);
+  svgRect(context, 61, 33, 6, 2.2, "#f1c40f");
+  svgRect(context, 59.5, 76, 9, 28, "#93a2a3");
+  svgCircle(context, 64, 82, 4.3, "#d7dbde", "#31465a", 1);
+  svgCircle(context, 64, 82, 1.8, "#ef4b3c");
+  svgCircle(context, 64, 90.5, 2.4, "#d7dbde", "#31465a", 0.8);
+  svgCircle(context, 64, 96, 2.4, "#d7dbde", "#31465a", 0.8);
+  svgRect(context, 61.8, 100, 4.4, 4.2, "#d7dbde", "#31465a", 0.8);
+  svgLine(context, 54, 85, 22, 85, "#31465a", 0.7);
+  svgLine(context, 74, 85, 106, 85, "#31465a", 0.7);
+  svgRect(context, 27.5, 89, 3.5, 6, null, "#31465a", 0.7);
+  svgRect(context, 97, 89, 3.5, 6, null, "#31465a", 0.7);
+}
+
+function svgPath(context, d, fill, stroke, strokeWidth = 1) {
+  const path = new Path2D(d);
+  if (fill) {
+    context.fillStyle = fill;
+    context.fill(path);
+  }
+  if (stroke) {
+    context.strokeStyle = stroke;
+    context.lineWidth = strokeWidth;
+    context.stroke(path);
+  }
+}
+
+function svgRect(context, x, y, width, height, fill, stroke, strokeWidth = 1) {
+  if (fill) {
+    context.fillStyle = fill;
+    context.fillRect(x, y, width, height);
+  }
+  if (stroke) {
+    context.strokeStyle = stroke;
+    context.lineWidth = strokeWidth;
+    context.strokeRect(x, y, width, height);
+  }
+}
+
+function svgLine(context, x1, y1, x2, y2, stroke, strokeWidth = 1) {
+  context.strokeStyle = stroke;
+  context.lineWidth = strokeWidth;
+  context.beginPath();
+  context.moveTo(x1, y1);
+  context.lineTo(x2, y2);
+  context.stroke();
+}
+
+function svgCircle(context, x, y, radius, fill, stroke, strokeWidth = 1) {
+  context.beginPath();
+  context.arc(x, y, radius, 0, Math.PI * 2);
+  if (fill) {
+    context.fillStyle = fill;
+    context.fill();
+  }
+  if (stroke) {
+    context.strokeStyle = stroke;
+    context.lineWidth = strokeWidth;
+    context.stroke();
+  }
+}
+
+function svgEllipse(context, x, y, rx, ry, fill, stroke, strokeWidth = 1) {
+  context.beginPath();
+  context.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+  if (fill) {
+    context.fillStyle = fill;
+    context.fill();
+  }
+  if (stroke) {
+    context.strokeStyle = stroke;
+    context.lineWidth = strokeWidth;
+    context.stroke();
+  }
 }
 
 function drawShipPreviews(root) {
