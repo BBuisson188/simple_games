@@ -439,7 +439,8 @@ function initStarfighterSinistar() {
     const nameInput = overlayEl.querySelector("[data-player-name]");
     const name = String(nameInput?.value || "Ace").trim() || "Ace";
     const entries = getLeaderboard();
-    entries.push({
+    const newEntry = {
+      id: `score-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       name: name.slice(0, 16),
       score: state.score,
       level: state.level + 1,
@@ -447,13 +448,15 @@ function initStarfighterSinistar() {
       difficulty: state.difficulty,
       ship: ship().name,
       createdAt: new Date().toISOString()
-    });
+    };
+    entries.push(newEntry);
     entries.sort((a, b) => b.score - a.score);
+    const rank = entries.findIndex((entry) => entry.id === newEntry.id) + 1;
     saveLeaderboard(entries);
-    showLeaderboard("Score Saved");
+    showLeaderboard("Score Saved", { highlightId: newEntry.id, recentEntry: newEntry, rank });
   }
 
-  function showLeaderboard(title = "Leaderboard") {
+  function showLeaderboard(title = "Leaderboard", options = {}) {
     if (["battle", "boss", "bossCharge"].includes(state.mode)) {
       state.pausedMode = state.mode;
       state.mode = "paused";
@@ -470,21 +473,48 @@ function initStarfighterSinistar() {
       return;
     }
     const entries = getLeaderboard();
+    const highlightId = options.highlightId || null;
     const rows = entries.length
       ? entries.map((entry, index) => `
-        <tr>
+        <tr class="${entry.id === highlightId ? "is-new-score" : ""}">
           <td>${index + 1}</td>
-          <td>${escapeHtml(entry.name)}</td>
+          <td>${escapeHtml(entry.name)}${entry.id === highlightId ? ` <span class="new-score-badge">NEW</span>` : ""}</td>
           <td>${entry.score}</td>
           <td>${entry.kills}</td>
         </tr>
       `).join("")
       : `<tr><td colspan="4">No scores yet.</td></tr>`;
+    const extraRow = options.recentEntry && !entries.some((entry) => entry.id === options.recentEntry.id)
+      ? `
+        <tr class="score-divider"><td colspan="4"></td></tr>
+        <tr class="is-new-score">
+          <td>Rank ${options.rank}</td>
+          <td>Your score <span class="new-score-badge">NEW</span></td>
+          <td>${options.recentEntry.score}</td>
+          <td>${options.recentEntry.kills}</td>
+        </tr>
+      `
+      : "";
     setOverlay(
       `${title}: Difficulty ${state.difficulty}`,
-      `<table class="leaderboard-table"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Kills</th></tr></thead><tbody>${rows}</tbody></table>`,
-      `<button class="primary-button" type="button" data-star-select-again>Play Again</button><button class="secondary-button" type="button" data-star-close-overlay>Close</button>`
+      `<table class="leaderboard-table"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Kills</th></tr></thead><tbody>${rows}${extraRow}</tbody></table>`,
+      `<button class="primary-button" type="button" data-star-select-again>Play Again</button><button class="secondary-button" type="button" data-star-close-overlay>Close</button><button class="secondary-button danger-button" type="button" data-star-reset-leaderboard>Reset</button>`
     );
+  }
+
+  function confirmResetLeaderboard() {
+    if (state.difficulty === 0) return;
+    setOverlay(
+      `Reset Difficulty ${state.difficulty}?`,
+      `<p>This clears only the Difficulty ${state.difficulty} leaderboard on this device.</p>`,
+      `<button class="primary-button danger-button" type="button" data-star-confirm-reset>Reset Scores</button><button class="secondary-button" type="button" data-star-show-leaderboard>Cancel</button>`
+    );
+  }
+
+  function resetLeaderboard() {
+    const key = leaderboardKey();
+    if (key) localStorage.removeItem(key);
+    showLeaderboard("Leaderboard Reset");
   }
 
   function hitPlayer(reason) {
@@ -1113,6 +1143,14 @@ function initStarfighterSinistar() {
     }
     if (target.closest("[data-star-save-score]")) {
       saveScoreFromOverlay();
+      return true;
+    }
+    if (target.closest("[data-star-reset-leaderboard]")) {
+      confirmResetLeaderboard();
+      return true;
+    }
+    if (target.closest("[data-star-confirm-reset]")) {
+      resetLeaderboard();
       return true;
     }
     if (target.closest("[data-star-close-overlay]")) {

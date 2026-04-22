@@ -1027,6 +1027,43 @@ select {
   color: #ffffff;
 }
 
+.star-panel .leaderboard-table tr.is-new-score td {
+  background: rgba(255, 206, 98, 0.18);
+  border-top: 1px solid rgba(255, 206, 98, 0.62);
+  border-bottom: 1px solid rgba(255, 206, 98, 0.62);
+  color: #fff7dd;
+}
+
+.star-panel .leaderboard-table tr.is-new-score td:first-child {
+  border-left: 3px solid #ffce62;
+}
+
+.new-score-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #ffce62;
+  color: #2b1d05;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  vertical-align: middle;
+}
+
+.leaderboard-table .score-divider td {
+  height: 8px;
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.star-panel .danger-button {
+  border-color: rgba(255, 108, 93, 0.42);
+  background: rgba(112, 25, 30, 0.42);
+  color: #ffd9d4;
+}
+
 .star-controls {
   position: absolute;
   inset: auto 12px 12px;
