@@ -23,6 +23,11 @@ const ENEMY_LASER_SPEED = 260;
 const TORPEDO_SPEED = 520;
 const MAX_ALLOWED_HITS = 6;
 const STARTING_ENEMY_LIMIT = 3;
+const TIE_SCORE = 200;
+const SMALL_ASTEROID_SCORE = 20;
+const LARGE_ASTEROID_SCORE = 40;
+const LASER_SHOT_PENALTY = 5;
+const DIFFICULTY_CLEAR_BONUS = { 0: 0, 1: 0, 2: 750, 3: 1500 };
 const LEADERBOARD_KEY = "miniGames.starfighterArenaLeaderboard";
 const LEADERBOARD_KEY_BY_DIFFICULTY = {
   1: LEADERBOARD_KEY,
@@ -285,6 +290,7 @@ function initStarfighterSinistar() {
   function fireLaser() {
     if (!["battle", "boss"].includes(state.mode) || state.laserCooldown > 0) return;
     state.laserCooldown = ship().fireCooldown;
+    state.score = Math.max(0, state.score - LASER_SHOT_PENALTY);
     playSound("laser");
     for (let i = 0; i < ship().laserCount; i += 1) {
       const offset = ship().laserCount === 1 ? 0 : (i === 0 ? -ship().laserSpread : ship().laserSpread);
@@ -298,6 +304,7 @@ function initStarfighterSinistar() {
         radius: 4
       });
     }
+    updateHud();
   }
 
   function fireTorpedo() {
@@ -323,19 +330,25 @@ function initStarfighterSinistar() {
     updateHud();
   }
 
+  function levelClearScore() {
+    const bossScore = 2500 + state.level * 1000;
+    const shieldScore = Math.max(0, MAX_ALLOWED_HITS - state.hits) * 350;
+    return bossScore + shieldScore + (DIFFICULTY_CLEAR_BONUS[state.difficulty] || 0);
+  }
+
   function bossMissed() {
     if (state.mode !== "boss") return;
     state.mode = "bossCharge";
     state.deathCharge = 1;
     state.enemyLasers = [];
     state.playerLasers = [];
-    setMessage("Boss weapon charging", "The shot missed.", 1);
+    setMessage("Superlaser charging", "The shot missed.", 1);
     playSound("charge");
     updateHud();
   }
 
   function winLevel() {
-    state.score += 2500 + state.level * 1000 + Math.max(0, MAX_ALLOWED_HITS - state.hits) * 350;
+    state.score += levelClearScore();
     state.mode = "bossExploding";
     state.running = true;
     state.explosionTimer = EXPLOSION_SEQUENCE_TIME;
@@ -695,7 +708,7 @@ function initStarfighterSinistar() {
           state.kills += 1;
           state.noKillTimer = 0;
           state.spawnTimer = stage().respawnAfterKill * difficulty().respawn;
-          state.score += 150;
+          state.score += TIE_SCORE;
           addBurst(enemy.x, enemy.y, "#9be7ff", 16);
           playSound("boom");
           updateHud();
@@ -708,7 +721,7 @@ function initStarfighterSinistar() {
           addBurst(laser.x, laser.y, "#ffaa5c", 8);
           if (asteroid.hits <= 0) {
             asteroid.dead = true;
-            state.score += asteroid.radius > 24 ? 90 : 50;
+            state.score += asteroid.radius > 24 ? LARGE_ASTEROID_SCORE : SMALL_ASTEROID_SCORE;
             addBurst(asteroid.x, asteroid.y, "#d0c0a3", 20);
             playSound("boom");
             updateHud();
