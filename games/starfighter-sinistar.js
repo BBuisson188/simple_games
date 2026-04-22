@@ -34,6 +34,7 @@ const LEADERBOARD_KEY_BY_DIFFICULTY = {
   2: `${LEADERBOARD_KEY}.difficulty2`,
   3: `${LEADERBOARD_KEY}.difficulty3`
 };
+const LAST_PLAYER_NAME_KEY = "miniGames.starfighterArenaLastName";
 const COUNTDOWN_TIME = 3.8;
 const EXPLOSION_SEQUENCE_TIME = 3.6;
 let currentStarfighterGame = null;
@@ -398,12 +399,13 @@ function initStarfighterSinistar() {
   }
 
   function renderFinalScoreForm(label, total) {
+    const savedName = escapeHtml(getLastPlayerName());
     return `
       <div class="final-score-form">
         <p><strong>${label}: ${total}</strong></p>
         <label>
           <span>Name</span>
-          <input data-player-name maxlength="16" autocomplete="off" placeholder="Ace">
+          <input data-player-name maxlength="16" autocomplete="off" placeholder="Ace" value="${savedName}">
         </label>
       </div>
     `;
@@ -431,6 +433,22 @@ function initStarfighterSinistar() {
     if (key) localStorage.setItem(key, JSON.stringify(entries.slice(0, 10)));
   }
 
+  function getLastPlayerName() {
+    try {
+      return localStorage.getItem(LAST_PLAYER_NAME_KEY) || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function saveLastPlayerName(name) {
+    try {
+      localStorage.setItem(LAST_PLAYER_NAME_KEY, name.slice(0, 16));
+    } catch {
+      // Local storage may be unavailable in private browsing; score saving still works for this session.
+    }
+  }
+
   function saveScoreFromOverlay() {
     if (state.difficulty === 0) {
       showLeaderboard("Test Mode");
@@ -438,6 +456,7 @@ function initStarfighterSinistar() {
     }
     const nameInput = overlayEl.querySelector("[data-player-name]");
     const name = String(nameInput?.value || "Ace").trim() || "Ace";
+    saveLastPlayerName(name);
     const entries = getLeaderboard();
     const newEntry = {
       id: `score-${Date.now()}-${Math.random().toString(16).slice(2)}`,
