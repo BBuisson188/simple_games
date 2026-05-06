@@ -2248,8 +2248,11 @@ function initAirplaneShooter() {
 
   panel.addEventListener("click", (event) => {
     if (Date.now() - lastPointerCommandAt > 450) {
-      runButtonCommand(event.target);
+      if (runButtonCommand(event.target)) event.stopPropagation();
+      return;
     }
+    event.preventDefault();
+    event.stopPropagation();
   });
 
   panel.addEventListener("pointerdown", (event) => {
@@ -2258,6 +2261,7 @@ function initAirplaneShooter() {
     if (runButtonCommand(event.target)) {
       lastPointerCommandAt = Date.now();
       event.preventDefault();
+      event.stopPropagation();
       return;
     }
 

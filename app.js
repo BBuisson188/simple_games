@@ -3,7 +3,8 @@ import { renderAirplaneShooter } from "./games/airplane-shooter.js";
 import { renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
 import { renderPlaceholder } from "./games/placeholders.js";
 
-const APP_VERSION = "v47";
+const APP_VERSION = "v52";
+const ACTIVE_GAME_KEY = "miniGames.activeGame";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
 
@@ -44,6 +45,11 @@ function setScreen(html) {
 
 function renderMenu() {
   delete app.dataset.game;
+  try {
+    sessionStorage.removeItem(ACTIVE_GAME_KEY);
+  } catch {
+    // Session storage can be unavailable in private browsing.
+  }
   const buttons = games.map((game) => `
     <button class="menu-button" type="button" data-game="${game.id}">
       ${game.graphic ? `<img class="menu-graphic" src="${game.graphic}" alt="" aria-hidden="true">` : `<span class="menu-graphic menu-graphic-placeholder" aria-hidden="true">?</span>`}
@@ -71,6 +77,11 @@ function openGame(gameId) {
   }
 
   app.dataset.game = game.id;
+  try {
+    sessionStorage.setItem(ACTIVE_GAME_KEY, game.id);
+  } catch {
+    // Session storage can be unavailable in private browsing.
+  }
   setScreen(game.render());
 }
 
@@ -81,14 +92,18 @@ function updateOfflineStatus() {
 let refreshingForNewServiceWorker = false;
 
 app.addEventListener("click", (event) => {
-  const gameButton = event.target.closest("[data-game]");
+  const gameButton = event.target.closest(".menu-button[data-game]");
   const menuButton = event.target.closest("[data-menu]");
 
   if (gameButton) {
+    event.preventDefault();
     openGame(gameButton.dataset.game);
+    return;
   }
 
   if (menuButton) {
+    if (event.detail !== 0) return;
+    event.preventDefault();
     renderMenu();
   }
 });
@@ -116,4 +131,16 @@ window.addEventListener("online", updateOfflineStatus);
 window.addEventListener("offline", updateOfflineStatus);
 
 updateOfflineStatus();
-renderMenu();
+
+let activeGame = null;
+try {
+  activeGame = sessionStorage.getItem(ACTIVE_GAME_KEY);
+} catch {
+  activeGame = null;
+}
+
+if (activeGame && games.some((game) => game.id === activeGame)) {
+  openGame(activeGame);
+} else {
+  renderMenu();
+}
