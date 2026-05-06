@@ -233,6 +233,142 @@ h3 {
   margin-bottom: 18px;
 }
 
+.screen[data-game="mad-libs"] {
+  position: relative;
+  isolation: isolate;
+  min-height: 68vh;
+  padding: clamp(8px, 2vw, 18px);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 10% 14%, rgba(255, 211, 85, 0.95) 0 5px, transparent 6px),
+    radial-gradient(circle at 82% 9%, rgba(63, 214, 170, 0.8) 0 7px, transparent 8px),
+    radial-gradient(circle at 92% 66%, rgba(255, 125, 173, 0.9) 0 6px, transparent 7px),
+    radial-gradient(circle at 17% 88%, rgba(118, 174, 255, 0.8) 0 8px, transparent 9px),
+    linear-gradient(135deg, #fff0a8 0%, #ffd1e4 28%, #bde9ff 60%, #c9f7b5 100%);
+  overflow: hidden;
+}
+
+.screen[data-game="mad-libs"]::before,
+.screen[data-game="mad-libs"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.screen[data-game="mad-libs"]::before {
+  background:
+    linear-gradient(45deg, transparent 0 46%, rgba(255, 255, 255, 0.58) 46% 54%, transparent 54% 100%) 6% 12% / 34px 34px no-repeat,
+    linear-gradient(-45deg, transparent 0 46%, rgba(255, 255, 255, 0.58) 46% 54%, transparent 54% 100%) 6% 12% / 34px 34px no-repeat,
+    linear-gradient(45deg, transparent 0 46%, rgba(255, 255, 255, 0.52) 46% 54%, transparent 54% 100%) 92% 28% / 28px 28px no-repeat,
+    linear-gradient(-45deg, transparent 0 46%, rgba(255, 255, 255, 0.52) 46% 54%, transparent 54% 100%) 92% 28% / 28px 28px no-repeat,
+    linear-gradient(45deg, transparent 0 46%, rgba(255, 255, 255, 0.58) 46% 54%, transparent 54% 100%) 84% 88% / 38px 38px no-repeat,
+    linear-gradient(-45deg, transparent 0 46%, rgba(255, 255, 255, 0.58) 46% 54%, transparent 54% 100%) 84% 88% / 38px 38px no-repeat;
+}
+
+.screen[data-game="mad-libs"]::after {
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.18) 0 8px, transparent 8px 24px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.12) 0 7px, transparent 7px 28px);
+  mix-blend-mode: soft-light;
+}
+
+.mad-libs-panel {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  border: 3px solid #ffffff;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    linear-gradient(135deg, #ffcf3f, #ff6fb1, #62d8f9, #68d86a) border-box;
+  box-shadow: 0 18px 45px rgba(100, 55, 138, 0.18), 0 0 0 8px rgba(255, 255, 255, 0.35);
+}
+
+.mad-libs-panel::before {
+  content: "";
+  position: absolute;
+  right: -34px;
+  top: -42px;
+  width: 160px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 207, 63, 0.42), rgba(255, 111, 177, 0.18) 54%, transparent 66%);
+  pointer-events: none;
+}
+
+.mad-libs-panel h2 {
+  color: #8a2a8d;
+  text-shadow: 2px 2px 0 #ffe36e;
+}
+
+.mad-libs-panel .intro,
+.mad-libs-panel .hint {
+  color: #33445a;
+}
+
+.mad-libs-panel .primary-button {
+  background: linear-gradient(135deg, #ff6b54, #d844a9);
+  box-shadow: 0 8px 0 #9f2c79;
+}
+
+.mad-libs-panel .secondary-button {
+  border-color: #ffd064;
+  background: #fff6cf;
+  color: #7a2a82;
+}
+
+.mad-libs-field {
+  position: relative;
+  padding: 10px;
+  border: 2px dashed rgba(255, 159, 52, 0.45);
+  border-radius: 8px;
+  background: #fffdf3;
+}
+
+.mad-libs-field:nth-child(2n) {
+  border-color: rgba(57, 190, 148, 0.48);
+  background: #f1fff8;
+}
+
+.mad-libs-field:nth-child(3n) {
+  border-color: rgba(255, 111, 177, 0.48);
+  background: #fff3fb;
+}
+
+.mad-libs-field.star-blank::after {
+  content: "";
+  position: absolute;
+  right: 13px;
+  top: 35px;
+  z-index: 1;
+  width: 24px;
+  aspect-ratio: 1;
+  background: #ffb000;
+  clip-path: polygon(50% 0, 61% 34%, 98% 35%, 68% 56%, 79% 92%, 50% 70%, 21% 92%, 32% 56%, 2% 35%, 39% 34%);
+  filter: drop-shadow(0 2px 0 #ffffff) drop-shadow(0 3px 0 rgba(123, 77, 0, 0.14));
+  pointer-events: none;
+}
+
+.mad-libs-field.star-blank input {
+  padding-right: 42px;
+}
+
+.mad-libs-panel .result-story {
+  border: 2px dashed #ffbd39;
+  background:
+    radial-gradient(circle at 98% 12%, rgba(255, 111, 177, 0.25) 0 18px, transparent 19px),
+    radial-gradient(circle at 4% 88%, rgba(75, 205, 242, 0.28) 0 22px, transparent 23px),
+    #fff9d9;
+}
+
+.mad-libs-panel .inserted-word {
+  color: #c7288f;
+  background: #ffec6e;
+  border-radius: 6px;
+  padding: 0 4px;
+}
+
 .field label {
   color: var(--muted);
   font-size: 0.95rem;

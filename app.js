@@ -3,7 +3,7 @@ import { renderAirplaneShooter } from "./games/airplane-shooter.js";
 import { renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
 import { renderPlaceholder } from "./games/placeholders.js";
 
-const APP_VERSION = "v46";
+const APP_VERSION = "v47";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
 
@@ -43,6 +43,7 @@ function setScreen(html) {
 }
 
 function renderMenu() {
+  delete app.dataset.game;
   const buttons = games.map((game) => `
     <button class="menu-button" type="button" data-game="${game.id}">
       ${game.graphic ? `<img class="menu-graphic" src="${game.graphic}" alt="" aria-hidden="true">` : `<span class="menu-graphic menu-graphic-placeholder" aria-hidden="true">?</span>`}
@@ -69,6 +70,7 @@ function openGame(gameId) {
     return;
   }
 
+  app.dataset.game = game.id;
   setScreen(game.render());
 }
 

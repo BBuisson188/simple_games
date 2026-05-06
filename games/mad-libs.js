@@ -501,8 +501,8 @@ function renderMadLibsToolbar(extraButtons = "") {
 function renderForm(story = getCurrentStory(), options = {}) {
   const { redoHistoryId = "" } = options;
   const isRedo = Boolean(redoHistoryId);
-  const fields = story.fields.map(([id, label, hint]) => `
-    <div class="field">
+  const fields = story.fields.map(([id, label, hint], index) => `
+    <div class="field mad-libs-field${index % 3 === 1 ? " star-blank" : ""}">
       <label for="${id}">${label}</label>
       <input id="${id}" name="${id}" autocomplete="off" required>
       <small>${hint}</small>
@@ -510,7 +510,7 @@ function renderForm(story = getCurrentStory(), options = {}) {
   `).join("");
 
   return `
-    <section class="panel">
+    <section class="panel mad-libs-panel">
       ${renderMadLibsToolbar()}
       <h2>Mad Libs</h2>
       <p class="intro">${isRedo ? `Redo: ${story.title}` : `Story ${getCurrentStoryIndex() + 1} of ${stories.length}: ${story.title}`}. Fill in the blanks, then make a silly story.</p>
@@ -540,7 +540,7 @@ function renderHistoryList() {
   const history = getHistory();
   if (history.length === 0) {
     return `
-      <section class="panel">
+      <section class="panel mad-libs-panel">
         <div class="toolbar">
           <button class="secondary-button" type="button" data-back-to-mad-libs>Back to Mad Libs</button>
           <button class="secondary-button" type="button" data-menu>Back to Menu</button>
@@ -563,7 +563,7 @@ function renderHistoryList() {
   `).join("");
 
   return `
-    <section class="panel">
+    <section class="panel mad-libs-panel">
       <div class="toolbar">
         <button class="secondary-button" type="button" data-back-to-mad-libs>Back to Mad Libs</button>
         <button class="secondary-button" type="button" data-menu>Back to Menu</button>
@@ -579,7 +579,7 @@ function renderHistoryDetail(historyId) {
   if (!item) return renderHistoryList();
 
   return `
-    <section class="panel">
+    <section class="panel mad-libs-panel">
       <div class="toolbar">
         <button class="secondary-button" type="button" data-history>Back to History</button>
         <button class="secondary-button" type="button" data-redo-history-id="${escapeHtml(item.id)}">Redo</button>
@@ -602,7 +602,7 @@ function renderResult(story, answers, shouldMoveToNextStory, replaceHistoryId = 
   localStorage.setItem("miniGames.madLibPlayCount", String(playCount));
 
   return `
-    <section class="panel">
+    <section class="panel mad-libs-panel">
       ${renderMadLibsToolbar('<button class="secondary-button" type="button" data-next-story>Next Story</button>')}
       <h2>${story.title}</h2>
       <div class="result-story">${highlightStory(storyText, answers)}</div>

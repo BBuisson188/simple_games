@@ -14,10 +14,15 @@ A tiny offline-capable mini-games web app for iPhone, iPad, and GitHub Pages.
 +-- games/
 |   +-- mad-libs.js
 |   +-- airplane-shooter.js
+|   +-- starfighter-sinistar.js
 |   +-- placeholders.js
 +-- assets/
     +-- icons/
         +-- app-icon.svg
+    +-- menu/
+        +-- airplane-shooter.jpg
+        +-- mad-libs.jpg
+        +-- starfighter.jpg
 ```
 
 ## What Each File Does
@@ -27,10 +32,48 @@ A tiny offline-capable mini-games web app for iPhone, iPad, and GitHub Pages.
 - `app.js` controls the main menu, screen switching, service worker registration, and online/offline status.
 - `games/mad-libs.js` contains the Mad Libs stories, one-by-one story flow, result screen, history, redo buttons, and local saved settings.
 - `games/airplane-shooter.js` contains the runway takeoff arcade game, plane choices, stage settings, scoring, controls, enemies, crash flow, level-complete flow, and distance.
+- `games/starfighter-sinistar.js` contains the Starfighter Arena game, ship choices, difficulty modes, enemy waves, bosses, scoring, controls, leaderboard, and canvas drawing.
 - `games/placeholders.js` contains reusable placeholder screens for games that are not built yet.
 - `manifest.json` gives the web app its Home Screen name, icon, colors, and standalone display behavior.
 - `service-worker.js` caches every required local file so the app can load offline after one successful online visit.
 - `assets/icons/app-icon.svg` is the local app icon used by the manifest and page.
+- `assets/menu/*.jpg` are compressed menu card images cached for offline use.
+
+## Handoff
+
+### What Changed
+
+- Bumped the app and service worker cache version to `v47`.
+- Added per-game screen state in `app.js` so game-specific CSS can target the active game and clear itself when returning to the menu.
+- Restyled Mad Libs with a brighter custom background, panel treatment, decorated fields, and highlighted inserted words.
+- Updated Starfighter Arena so the Trade Federation level uses Vulture Droid enemies, later levels still use TIE fighters, and final score/leaderboard kills track total kills across the full run.
+
+### Current Architecture
+
+- This is a static, offline-capable web app served from the repo root and designed for GitHub Pages.
+- `app.js` owns the menu, screen replacement, active game dataset, online/offline status, and service worker registration.
+- Each game exports a render function from `games/`; game modules bind their own events after render and keep local state inside the module.
+- `styles.css` contains shared app styling plus game-specific sections for Airplane Shooter, Mad Libs, and Starfighter Arena.
+- `service-worker.js` precaches all local app files and menu images, then refreshes the cache when `CACHE_NAME` changes.
+
+### Unresolved Issues
+
+- There is no automated test suite or build step; validation is manual in a local browser.
+- The future game menu slot is still a placeholder.
+- Offline updates depend on correctly bumping both `APP_VERSION` and `CACHE_NAME`.
+
+### Next Recommended Steps
+
+- Run through the menu, Mad Libs form/history/redo flow, and Starfighter level one on desktop and phone-sized viewports.
+- Confirm GitHub Pages serves `v47` after deployment and that the service worker refreshes cached assets.
+- Decide what should replace the remaining future game placeholder.
+
+### Important Implementation Notes
+
+- Keep all runtime assets local and add new asset paths to `service-worker.js`.
+- Avoid CDN scripts, remote images, or web fonts unless an offline strategy is added.
+- Starfighter score entries use `totalKills`, while the HUD still shows current-level kills needed to spawn the boss.
+- Mad Libs styling relies on `#app` receiving `data-game="mad-libs"` from `app.js`.
 
 ## What To Edit Later
 

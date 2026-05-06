@@ -5,9 +5,9 @@ const ships = {
 };
 
 const stages = [
-  { name: "Trade Federation Ambush", bossName: "Droid Control Ship", bossType: "droid", killsNeeded: 9, enemyRate: 1.25, enemySpeed: 72, asteroidCount: 12, lockOn: true, respawnAfterKill: 2.15, noKillReinforcement: 5.5 },
-  { name: "Imperial Blockade", bossName: "Imperial Star Destroyer", bossType: "destroyer", killsNeeded: 13, enemyRate: 1, enemySpeed: 86, asteroidCount: 15, lockOn: true, respawnAfterKill: 1.65, noKillReinforcement: 4.4 },
-  { name: "Death Star Run", bossName: "Death Star", bossType: "deathstar", killsNeeded: 16, enemyRate: 0.78, enemySpeed: 102, asteroidCount: 18, lockOn: false, respawnAfterKill: 1.15, noKillReinforcement: 3.4 }
+  { name: "Trade Federation Ambush", bossName: "Droid Control Ship", bossType: "droid", enemyType: "vulture", killsNeeded: 9, enemyRate: 1.25, enemySpeed: 72, asteroidCount: 12, lockOn: true, respawnAfterKill: 2.15, noKillReinforcement: 5.5 },
+  { name: "Imperial Blockade", bossName: "Imperial Star Destroyer", bossType: "destroyer", enemyType: "tie", killsNeeded: 13, enemyRate: 1, enemySpeed: 86, asteroidCount: 15, lockOn: true, respawnAfterKill: 1.65, noKillReinforcement: 4.4 },
+  { name: "Death Star Run", bossName: "Death Star", bossType: "deathstar", enemyType: "tie", killsNeeded: 16, enemyRate: 0.78, enemySpeed: 102, asteroidCount: 18, lockOn: false, respawnAfterKill: 1.15, noKillReinforcement: 3.4 }
 ];
 
 const difficulties = {
@@ -69,7 +69,7 @@ export function renderStarfighterSinistar() {
       </div>
       <div class="star-game" data-selected-ship="xwing">
         <div class="game-overlay" hidden data-star-overlay></div>
-        <div class="game-header"><div><h2>Starfighter Arena</h2><p class="intro">Choose a ship, blast TIE fighters and asteroids, then land one Proton Torpedo on the boss.</p></div></div>
+        <div class="game-header"><div><h2>Starfighter Arena</h2><p class="intro">Choose a ship, blast enemy fighters and asteroids, then land one Proton Torpedo on the boss.</p></div></div>
         <div class="star-select" data-star-select>
           <div class="star-difficulty" aria-label="Difficulty">
             <h3>Difficulty</h3>
@@ -126,7 +126,7 @@ function initStarfighterSinistar() {
   const difficultyButtons = [...root.querySelectorAll("[data-star-difficulty]")];
   const input = { x: 0, y: 0, active: false, pointerId: null, fire: false, firePointerId: null, keys: new Set() };
   const state = {
-    running: false, mode: "select", selectedShip: "xwing", difficulty: 1, level: 0, score: 0, hits: 0, kills: 0,
+    running: false, mode: "select", selectedShip: "xwing", difficulty: 1, level: 0, score: 0, hits: 0, kills: 0, totalKills: 0,
     player: null, enemies: [], asteroids: [], playerLasers: [], enemyLasers: [], torpedo: null,
     bursts: [], stars: [], boss: null, torpedoAvailable: false, torpedoFired: false,
     spawnTimer: 0, enemyLimit: STARTING_ENEMY_LIMIT, noKillTimer: 0, laserCooldown: 0,
@@ -228,6 +228,7 @@ function initStarfighterSinistar() {
     state.running = true;
     state.level = 0;
     state.score = 0;
+    state.totalKills = 0;
     state.pausedMode = null;
     selectScreen.hidden = true;
     deck.hidden = false;
@@ -274,7 +275,17 @@ function initStarfighterSinistar() {
   function spawnEnemy() {
     const edge = randomEdgePoint();
     const angle = Math.atan2(state.player.y - edge.y, state.player.x - edge.x);
-    state.enemies.push({ x: edge.x, y: edge.y, vx: 0, vy: 0, angle, radius: 16, fireTimer: rand(1.1, 2.25) * difficulty().fireRate, wobble: Math.random() * Math.PI * 2 });
+    state.enemies.push({
+      x: edge.x,
+      y: edge.y,
+      vx: 0,
+      vy: 0,
+      angle,
+      radius: 16,
+      type: stage().enemyType || "tie",
+      fireTimer: rand(1.1, 2.25) * difficulty().fireRate,
+      wobble: Math.random() * Math.PI * 2
+    });
   }
 
   function spawnBoss() {
@@ -350,6 +361,7 @@ function initStarfighterSinistar() {
 
   function winLevel() {
     state.score += levelClearScore();
+    state.totalKills += 1;
     state.mode = "bossExploding";
     state.running = true;
     state.explosionTimer = EXPLOSION_SEQUENCE_TIME;
@@ -395,7 +407,7 @@ function initStarfighterSinistar() {
     state.mode = "gameOver";
     state.running = false;
     updateHud();
-    setOverlay(title, `<p>${detail}</p><p>TIE kills: <strong>${state.kills}</strong></p>${renderFinalScoreForm("Final score", state.score)}`, renderScoreButtons(`<button class="secondary-button" type="button" data-star-restart>Play Again</button><button class="secondary-button" type="button" data-star-select-again>Choose Ship</button>`));
+    setOverlay(title, `<p>${detail}</p><p>Total kills: <strong>${state.totalKills}</strong></p>${renderFinalScoreForm("Final score", state.score)}`, renderScoreButtons(`<button class="secondary-button" type="button" data-star-restart>Play Again</button><button class="secondary-button" type="button" data-star-select-again>Choose Ship</button>`));
   }
 
   function renderFinalScoreForm(label, total) {
@@ -463,7 +475,7 @@ function initStarfighterSinistar() {
       name: name.slice(0, 16),
       score: state.score,
       level: state.level + 1,
-      kills: state.kills,
+      kills: state.totalKills,
       difficulty: state.difficulty,
       ship: ship().name,
       createdAt: new Date().toISOString()
@@ -755,6 +767,7 @@ function initStarfighterSinistar() {
           enemy.dead = true;
           laser.life = 0;
           state.kills += 1;
+          state.totalKills += 1;
           state.noKillTimer = 0;
           state.spawnTimer = stage().respawnAfterKill * difficulty().respawn;
           state.score += TIE_SCORE;
@@ -791,7 +804,7 @@ function initStarfighterSinistar() {
         enemy.dead = true;
         addBurst(enemy.x, enemy.y, "#9be7ff", 12);
         playSound("boom");
-        hitPlayer("A TIE fighter clipped your ship.");
+        hitPlayer(`A ${enemy.type === "vulture" ? "Vulture Droid" : "TIE fighter"} clipped your ship.`);
       }
     });
     state.asteroids.forEach((asteroid) => {
@@ -835,7 +848,7 @@ function initStarfighterSinistar() {
     state.asteroids.forEach(drawAsteroid);
     state.playerLasers.forEach((laser) => drawLaser(laser, "#ff3d36", "#ffd1ca"));
     state.enemyLasers.forEach((laser) => drawLaser(laser, "#57ff70", "#d7ffdf"));
-    state.enemies.forEach(drawTieFighter);
+    state.enemies.forEach(drawEnemyFighter);
     if (state.boss) drawBoss(state.boss);
     if (state.torpedo) drawTorpedo(state.torpedo);
     state.bursts.forEach(drawBurst);
@@ -871,6 +884,14 @@ function initStarfighterSinistar() {
     ctx.restore();
   }
 
+  function drawEnemyFighter(enemy) {
+    if (enemy.type === "vulture") {
+      drawVultureDroid(enemy);
+      return;
+    }
+    drawTieFighter(enemy);
+  }
+
   function drawTieFighter(enemy) {
     ctx.save();
     ctx.translate(enemy.x, enemy.y);
@@ -886,6 +907,64 @@ function initStarfighterSinistar() {
     ctx.stroke();
     ctx.strokeRect(-9, -20, 6, 40);
     ctx.strokeRect(12, -20, 6, 40);
+    ctx.restore();
+  }
+
+  function drawVultureDroid(enemy) {
+    ctx.save();
+    ctx.translate(enemy.x, enemy.y);
+    ctx.rotate(enemy.angle);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#6f7c87";
+    ctx.fillStyle = "#c2a96d";
+
+    ctx.beginPath();
+    ctx.moveTo(18, 0);
+    ctx.lineTo(6, -8);
+    ctx.lineTo(-8, -8);
+    ctx.lineTo(-17, -18);
+    ctx.lineTo(-10, -3);
+    ctx.lineTo(-10, 3);
+    ctx.lineTo(-17, 18);
+    ctx.lineTo(-8, 8);
+    ctx.lineTo(6, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(-4, -8);
+    ctx.lineTo(-20, -12);
+    ctx.lineTo(-28, -24);
+    ctx.lineTo(-17, -18);
+    ctx.closePath();
+    ctx.fillStyle = "#b99655";
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(-4, 8);
+    ctx.lineTo(-20, 12);
+    ctx.lineTo(-28, 24);
+    ctx.lineTo(-17, 18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(8, 0, 6, 0, Math.PI * 2);
+    ctx.fillStyle = "#685a46";
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(-6, -4);
+    ctx.lineTo(5, -4);
+    ctx.moveTo(-6, 4);
+    ctx.lineTo(5, 4);
+    ctx.moveTo(-12, 0);
+    ctx.lineTo(-25, 0);
+    ctx.stroke();
     ctx.restore();
   }
 
