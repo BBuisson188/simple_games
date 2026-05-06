@@ -1,7 +1,7 @@
 const ships = {
   falcon: { name: "Millennium Falcon", note: "Heavy freighter, wider double lasers, slower fire.", radius: 18, acceleration: 520, drag: 0.978, maxSpeed: 255, laserCount: 2, laserSpread: 9, fireCooldown: 0.24 },
-  xwing: { name: "X-wing Fighter", note: "Quick starfighter, narrow profile, fast single laser.", radius: 14, acceleration: 640, drag: 0.976, maxSpeed: 305, laserCount: 1, laserSpread: 0, fireCooldown: 0.14 },
-  awing: { name: "Jedi A-wing", note: "Compact wedge fighter, fastest handling and single laser.", radius: 15, acceleration: 690, drag: 0.974, maxSpeed: 325, laserCount: 1, laserSpread: 0, fireCooldown: 0.13 }
+  xwing: { name: "X-wing Fighter", note: "Alternates center shots with twin wingtip cannons.", radius: 14, acceleration: 640, drag: 0.976, maxSpeed: 305, laserCount: 1, laserSpread: 0, fireCooldown: 0.14 },
+  awing: { name: "Jedi A-wing", note: "Fast handling with slow Force-guided lasers.", radius: 15, acceleration: 690, drag: 0.974, maxSpeed: 325, laserCount: 1, laserSpread: 0, fireCooldown: 0.72 }
 };
 
 const stages = [
@@ -24,9 +24,11 @@ const TORPEDO_SPEED = 520;
 const MAX_ALLOWED_HITS = 6;
 const STARTING_ENEMY_LIMIT = 3;
 const TIE_SCORE = 200;
-const SMALL_ASTEROID_SCORE = 20;
 const LARGE_ASTEROID_SCORE = 40;
 const LASER_SHOT_PENALTY = 5;
+const AWING_HOMING_RANGE = 560;
+const AWING_HOMING_ARC = 0.52;
+const AWING_HOMING_TURN_RATE = 5.8;
 const DIFFICULTY_CLEAR_BONUS = { 0: 0, 1: 0, 2: 750, 3: 1500 };
 const LEADERBOARD_KEY = "miniGames.starfighterArenaLeaderboard";
 const LEADERBOARD_KEY_BY_DIFFICULTY = {
@@ -39,10 +41,12 @@ const COUNTDOWN_TIME = 3.8;
 const EXPLOSION_SEQUENCE_TIME = 3.6;
 let currentStarfighterGame = null;
 let audioContext = null;
+let lastSelectedShip = "xwing";
+let lastSelectedDifficulty = 1;
 
 function renderShipButtons() {
   return Object.entries(ships).map(([id, ship]) => `
-    <button class="starship-choice ${id === "xwing" ? "is-selected" : ""}" type="button" data-starship-choice="${id}">
+    <button class="starship-choice ${id === lastSelectedShip ? "is-selected" : ""}" type="button" data-starship-choice="${id}">
       <canvas class="starship-preview" width="130" height="82" data-starship-preview="${id}" aria-hidden="true"></canvas>
       <strong>${ship.name}</strong>
       <span>${ship.note}</span>
@@ -52,7 +56,7 @@ function renderShipButtons() {
 
 function renderDifficultyButtons() {
   return Object.entries(difficulties).map(([id, difficulty]) => `
-    <button class="star-difficulty-choice ${id === "1" ? "is-selected" : ""}" type="button" data-star-difficulty="${id}">
+    <button class="star-difficulty-choice ${Number(id) === lastSelectedDifficulty ? "is-selected" : ""}" type="button" data-star-difficulty="${id}">
       <strong>${difficulty.name}</strong>
       <span>${difficulty.label}</span>
     </button>
@@ -67,7 +71,7 @@ export function renderStarfighterSinistar() {
         <button class="secondary-button" type="button" data-menu>Back to Menu</button>
         <button class="secondary-button" type="button" data-star-show-leaderboard>Leaderboard</button>
       </div>
-      <div class="star-game" data-selected-ship="xwing">
+      <div class="star-game" data-selected-ship="${lastSelectedShip}">
         <div class="game-overlay" hidden data-star-overlay></div>
         <div class="game-header"><div><h2>Starfighter Arena</h2><p class="intro">Choose a ship, blast enemy fighters and asteroids, then land one Proton Torpedo on the boss.</p></div></div>
         <div class="star-select" data-star-select>
@@ -126,25 +130,31 @@ function initStarfighterSinistar() {
   const difficultyButtons = [...root.querySelectorAll("[data-star-difficulty]")];
   const input = { x: 0, y: 0, active: false, pointerId: null, fire: false, firePointerId: null, keys: new Set() };
   const state = {
-    running: false, mode: "select", selectedShip: "xwing", difficulty: 1, level: 0, score: 0, hits: 0, kills: 0, totalKills: 0,
+    running: false, mode: "select", selectedShip: lastSelectedShip, difficulty: lastSelectedDifficulty, level: 0, score: 0, hits: 0, kills: 0, totalKills: 0,
     player: null, enemies: [], asteroids: [], playerLasers: [], enemyLasers: [], torpedo: null,
     bursts: [], stars: [], boss: null, torpedoAvailable: false, torpedoFired: false,
     spawnTimer: 0, enemyLimit: STARTING_ENEMY_LIMIT, noKillTimer: 0, laserCooldown: 0,
     bossLaserTimer: 0, lastTime: 0, messageTimer: 0, deathCharge: 0, pausedMode: null,
-    countdownTimer: 0, explosionTimer: 0, explosionTarget: null, pendingGameOver: null
+    countdownTimer: 0, explosionTimer: 0, explosionTarget: null, pendingGameOver: null,
+    xwingWingVolley: false
   };
   const stage = () => stages[state.level];
   const ship = () => ships[state.selectedShip];
   const difficulty = () => difficulties[state.difficulty] || difficulties[1];
 
   function chooseShip(shipId) {
+    if (!ships[shipId]) return;
     state.selectedShip = shipId;
+    lastSelectedShip = shipId;
     root.dataset.selectedShip = shipId;
     shipButtons.forEach((button) => button.classList.toggle("is-selected", button.dataset.starshipChoice === shipId));
   }
 
   function chooseDifficulty(value) {
-    state.difficulty = Number(value);
+    const nextDifficulty = Number(value);
+    if (!difficulties[nextDifficulty]) return;
+    state.difficulty = nextDifficulty;
+    lastSelectedDifficulty = nextDifficulty;
     difficultyButtons.forEach((button) => button.classList.toggle("is-selected", Number(button.dataset.starDifficulty) === state.difficulty));
   }
 
@@ -209,6 +219,7 @@ function initStarfighterSinistar() {
     state.bossLaserTimer = 1.2;
     state.lastTime = 0;
     state.deathCharge = 0;
+    state.xwingWingVolley = false;
     state.countdownTimer = COUNTDOWN_TIME;
     state.explosionTimer = 0;
     state.explosionTarget = null;
@@ -241,6 +252,8 @@ function initStarfighterSinistar() {
   function nextLevel() {
     state.level += 1;
     state.running = true;
+    selectScreen.hidden = true;
+    deck.hidden = false;
     hideOverlay();
     resetLevel();
     requestAnimationFrame(loop);
@@ -262,7 +275,7 @@ function initStarfighterSinistar() {
     const point = initial ? { x: Math.random() * WORLD.width, y: Math.random() * WORLD.height } : randomEdgePoint();
     const asteroid = {
       x: point.x, y: point.y, vx: rand(-42, 42), vy: rand(-34, 34), radius,
-      hits: large ? 2 : 1, spin: rand(-1.8, 1.8), angle: Math.random() * Math.PI * 2,
+      large, hits: large ? 2 : 1, spin: rand(-1.8, 1.8), angle: Math.random() * Math.PI * 2,
       chunks: Array.from({ length: 9 }, (_, index) => ({ a: (index / 9) * Math.PI * 2, r: radius * rand(0.72, 1.08) }))
     };
     if (distance(asteroid, state.player || { x: WORLD.width / 2, y: WORLD.height / 2 }) < 130) {
@@ -304,19 +317,39 @@ function initStarfighterSinistar() {
     state.laserCooldown = ship().fireCooldown;
     state.score = Math.max(0, state.score - LASER_SHOT_PENALTY);
     playSound("laser");
+    if (state.selectedShip === "xwing") {
+      fireXwingLaser();
+      updateHud();
+      return;
+    }
     for (let i = 0; i < ship().laserCount; i += 1) {
       const offset = ship().laserCount === 1 ? 0 : (i === 0 ? -ship().laserSpread : ship().laserSpread);
-      const side = perpendicular(state.player.angle);
-      state.playerLasers.push({
-        x: state.player.x + Math.cos(state.player.angle) * ship().radius + side.x * offset,
-        y: state.player.y + Math.sin(state.player.angle) * ship().radius + side.y * offset,
-        vx: Math.cos(state.player.angle) * PLAYER_LASER_SPEED,
-        vy: Math.sin(state.player.angle) * PLAYER_LASER_SPEED,
-        life: 1.05,
-        radius: 4
-      });
+      addPlayerLaser(state.player.angle, offset, ship().radius, state.selectedShip === "awing" ? "homing" : "standard");
     }
     updateHud();
+  }
+
+  function fireXwingLaser() {
+    if (state.xwingWingVolley) {
+      addPlayerLaser(state.player.angle, -17, ship().radius + 3, "standard");
+      addPlayerLaser(state.player.angle, 17, ship().radius + 3, "standard");
+    } else {
+      addPlayerLaser(state.player.angle, 0, ship().radius + 2, "standard");
+    }
+    state.xwingWingVolley = !state.xwingWingVolley;
+  }
+
+  function addPlayerLaser(angle, sideOffset = 0, forwardOffset = ship().radius, kind = "standard") {
+    const side = perpendicular(angle);
+    state.playerLasers.push({
+      x: state.player.x + Math.cos(angle) * forwardOffset + side.x * sideOffset,
+      y: state.player.y + Math.sin(angle) * forwardOffset + side.y * sideOffset,
+      vx: Math.cos(angle) * PLAYER_LASER_SPEED,
+      vy: Math.sin(angle) * PLAYER_LASER_SPEED,
+      life: kind === "homing" ? 1.25 : 1.05,
+      radius: kind === "homing" ? 4.5 : 4,
+      kind
+    });
   }
 
   function fireTorpedo() {
@@ -735,6 +768,9 @@ function initStarfighterSinistar() {
       item.y += item.vy * dt;
       item.life -= dt;
     };
+    state.playerLasers.forEach((laser) => {
+      if (laser.kind === "homing") steerHomingLaser(laser, dt);
+    });
     state.playerLasers.forEach(move);
     state.enemyLasers.forEach(move);
     if (state.torpedo) {
@@ -747,6 +783,30 @@ function initStarfighterSinistar() {
     }
     state.playerLasers = state.playerLasers.filter((laser) => laser.life > 0 && inBounds(laser, 40));
     state.enemyLasers = state.enemyLasers.filter((laser) => laser.life > 0 && inBounds(laser, 40));
+  }
+
+  function steerHomingLaser(laser, dt) {
+    let target = null;
+    let targetScore = Infinity;
+    const laserAngle = Math.atan2(laser.vy, laser.vx);
+    state.enemies.forEach((enemy) => {
+      if (enemy.dead) return;
+      const targetAngle = Math.atan2(enemy.y - laser.y, enemy.x - laser.x);
+      const angleGap = Math.abs(shortAngle(laserAngle, targetAngle));
+      const targetDistance = distance(laser, enemy);
+      if (angleGap > AWING_HOMING_ARC || targetDistance > AWING_HOMING_RANGE) return;
+      const score = angleGap * 900 + targetDistance;
+      if (score < targetScore) {
+        target = enemy;
+        targetScore = score;
+      }
+    });
+    if (!target) return;
+    const desiredAngle = Math.atan2(target.y - laser.y, target.x - laser.x);
+    const nextAngle = laserAngle + clamp(shortAngle(laserAngle, desiredAngle), -AWING_HOMING_TURN_RATE * dt, AWING_HOMING_TURN_RATE * dt);
+    const speed = Math.hypot(laser.vx, laser.vy);
+    laser.vx = Math.cos(nextAngle) * speed;
+    laser.vy = Math.sin(nextAngle) * speed;
   }
 
   function updateBursts(dt) {
@@ -783,7 +843,7 @@ function initStarfighterSinistar() {
           addBurst(laser.x, laser.y, "#ffaa5c", 8);
           if (asteroid.hits <= 0) {
             asteroid.dead = true;
-            state.score += asteroid.radius > 24 ? LARGE_ASTEROID_SCORE : SMALL_ASTEROID_SCORE;
+            if (asteroid.large) state.score += LARGE_ASTEROID_SCORE;
             addBurst(asteroid.x, asteroid.y, "#d0c0a3", 20);
             playSound("boom");
             updateHud();
@@ -809,6 +869,10 @@ function initStarfighterSinistar() {
     });
     state.asteroids.forEach((asteroid) => {
       if (distance(asteroid, state.player) < asteroid.radius + ship().radius - 3) {
+        if (!asteroid.large) {
+          bounceSmallAsteroid(asteroid);
+          return;
+        }
         asteroid.dead = true;
         addBurst(asteroid.x, asteroid.y, "#d0c0a3", 18);
         playSound("boom");
@@ -816,6 +880,28 @@ function initStarfighterSinistar() {
       }
     });
     if (state.torpedo && state.boss && distance(state.torpedo, state.boss) < state.boss.radius + state.torpedo.radius) winLevel();
+  }
+
+  function bounceSmallAsteroid(asteroid) {
+    const dx = asteroid.x - state.player.x;
+    const dy = asteroid.y - state.player.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const nx = dx / length;
+    const ny = dy / length;
+    const overlap = asteroid.radius + ship().radius - 3 - length;
+    if (overlap > 0) {
+      asteroid.x += nx * (overlap + 1.5);
+      asteroid.y += ny * (overlap + 1.5);
+    }
+    const relativeVx = asteroid.vx - state.player.vx;
+    const relativeVy = asteroid.vy - state.player.vy;
+    const approachSpeed = relativeVx * nx + relativeVy * ny;
+    if (approachSpeed < 0) {
+      asteroid.vx -= 1.55 * approachSpeed * nx;
+      asteroid.vy -= 1.55 * approachSpeed * ny;
+    }
+    asteroid.vx += state.player.vx * 0.035;
+    asteroid.vy += state.player.vy * 0.035;
   }
 
   function fireEnemyLaser(enemy, inaccuracy) {
@@ -846,7 +932,7 @@ function initStarfighterSinistar() {
     ctx.clearRect(0, 0, WORLD.width, WORLD.height);
     drawSpace();
     state.asteroids.forEach(drawAsteroid);
-    state.playerLasers.forEach((laser) => drawLaser(laser, "#ff3d36", "#ffd1ca"));
+    state.playerLasers.forEach((laser) => drawLaser(laser, laser.kind === "homing" ? "#4ddfff" : "#ff3d36", laser.kind === "homing" ? "#e8fbff" : "#ffd1ca"));
     state.enemyLasers.forEach((laser) => drawLaser(laser, "#57ff70", "#d7ffdf"));
     state.enemies.forEach(drawEnemyFighter);
     if (state.boss) drawBoss(state.boss);
@@ -1007,7 +1093,7 @@ function initStarfighterSinistar() {
     ctx.save();
     ctx.translate(asteroid.x, asteroid.y);
     ctx.rotate(asteroid.angle);
-    ctx.fillStyle = asteroid.hits > 1 ? "#8b7b68" : "#a7947c";
+    ctx.fillStyle = asteroid.large ? "#8b7b68" : "#a7947c";
     ctx.strokeStyle = "#453b32";
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -1273,12 +1359,18 @@ function initStarfighterSinistar() {
   let lastPointerCommandAt = 0;
 
   panel.addEventListener("click", (event) => {
-    if (Date.now() - lastPointerCommandAt > 450) runButtonCommand(event.target);
+    if (Date.now() - lastPointerCommandAt > 450) {
+      if (runButtonCommand(event.target)) event.stopPropagation();
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
   });
   panel.addEventListener("pointerdown", (event) => {
     if (runButtonCommand(event.target)) {
       lastPointerCommandAt = Date.now();
       event.preventDefault();
+      event.stopPropagation();
       return;
     }
     if (event.target.closest("[data-star-fire]")) {
