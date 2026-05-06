@@ -1,0 +1,315 @@
+name: Apply local game updates
+
+on:
+  push:
+    paths:
+      - .github/workflows/codex-apply-local-updates.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply local changes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def read(path):
+              return Path(path).read_text(encoding="utf-8")
+
+          def write(path, text):
+              Path(path).write_text(text, encoding="utf-8", newline="\n")
+
+          def replace(path, old, new):
+              text = read(path)
+              if old not in text:
+                  raise SystemExit(f"Missing expected text in {path}: {old[:80]!r}")
+              write(path, text.replace(old, new, 1))
+
+          def insert_before(path, marker, block):
+              text = read(path)
+              if block in text:
+                  return
+              if marker not in text:
+                  raise SystemExit(f"Missing marker in {path}: {marker[:80]!r}")
+              write(path, text.replace(marker, block + marker, 1))
+
+          replace("app.js", 'const APP_VERSION = "v46";', 'const APP_VERSION = "v47";')
+          replace("app.js", 'function renderMenu() {\n  const buttons = games.map((game) => `', 'function renderMenu() {\n  delete app.dataset.game;\n  const buttons = games.map((game) => `')
+          replace("app.js", '\n  setScreen(game.render());\n}', '\n  app.dataset.game = game.id;\n  setScreen(game.render());\n}')
+
+          replace("service-worker.js", 'const CACHE_NAME = "mini-games-v46";', 'const CACHE_NAME = "mini-games-v47";')
+
+          replace("games/mad-libs.js", 'const fields = story.fields.map(([id, label, hint]) => `\n    <div class="field">', 'const fields = story.fields.map(([id, label, hint], index) => `\n    <div class="field mad-libs-field${index % 3 === 1 ? " star-blank" : ""}">')
+          for old in [
+              '<section class="panel">\n      ${renderMadLibsToolbar()}',
+              '<section class="panel">\n        <div class="toolbar">',
+              '<section class="panel">\n      <div class="toolbar">',
+              '<section class="panel">\n      ${renderMadLibsToolbar(\'<button class="secondary-button" type="button" data-next-story>Next Story</button>\')}',
+          ]:
+              new = old.replace('<section class="panel">', '<section class="panel mad-libs-panel">')
+              replace("games/mad-libs.js", old, new)
+
+          replace("games/starfighter-sinistar.js", '{ name: "Trade Federation Ambush", bossName: "Droid Control Ship", bossType: "droid", killsNeeded: 9, enemyRate: 1.25, enemySpeed: 72, asteroidCount: 12, lockOn: true, respawnAfterKill: 2.15, noKillReinforcement: 5.5 },', '{ name: "Trade Federation Ambush", bossName: "Droid Control Ship", bossType: "droid", enemyType: "vulture", killsNeeded: 9, enemyRate: 1.25, enemySpeed: 72, asteroidCount: 12, lockOn: true, respawnAfterKill: 2.15, noKillReinforcement: 5.5 },')
+          replace("games/starfighter-sinistar.js", '{ name: "Imperial Blockade", bossName: "Imperial Star Destroyer", bossType: "destroyer", killsNeeded: 13, enemyRate: 1, enemySpeed: 86, asteroidCount: 15, lockOn: true, respawnAfterKill: 1.65, noKillReinforcement: 4.4 },', '{ name: "Imperial Blockade", bossName: "Imperial Star Destroyer", bossType: "destroyer", enemyType: "tie", killsNeeded: 13, enemyRate: 1, enemySpeed: 86, asteroidCount: 15, lockOn: true, respawnAfterKill: 1.65, noKillReinforcement: 4.4 },')
+          replace("games/starfighter-sinistar.js", '{ name: "Death Star Run", bossName: "Death Star", bossType: "deathstar", killsNeeded: 16, enemyRate: 0.78, enemySpeed: 102, asteroidCount: 18, lockOn: false, respawnAfterKill: 1.15, noKillReinforcement: 3.4 }', '{ name: "Death Star Run", bossName: "Death Star", bossType: "deathstar", enemyType: "tie", killsNeeded: 16, enemyRate: 0.78, enemySpeed: 102, asteroidCount: 18, lockOn: false, respawnAfterKill: 1.15, noKillReinforcement: 3.4 }')
+          replace("games/starfighter-sinistar.js", 'Choose a ship, blast TIE fighters and asteroids, then land one Proton Torpedo on the boss.', 'Choose a ship, blast enemy fighters and asteroids, then land one Proton Torpedo on the boss.')
+          replace("games/starfighter-sinistar.js", 'running: false, mode: "select", selectedShip: "xwing", difficulty: 1, level: 0, score: 0, hits: 0, kills: 0,', 'running: false, mode: "select", selectedShip: "xwing", difficulty: 1, level: 0, score: 0, hits: 0, kills: 0, totalKills: 0,')
+          replace("games/starfighter-sinistar.js", 'state.score = 0;\n    state.pausedMode = null;', 'state.score = 0;\n    state.totalKills = 0;\n    state.pausedMode = null;')
+          replace("games/starfighter-sinistar.js", 'state.enemies.push({ x: edge.x, y: edge.y, vx: 0, vy: 0, angle, radius: 16, fireTimer: rand(1.1, 2.25) * difficulty().fireRate, wobble: Math.random() * Math.PI * 2 });', 'state.enemies.push({\n      x: edge.x,\n      y: edge.y,\n      vx: 0,\n      vy: 0,\n      angle,\n      radius: 16,\n      type: stage().enemyType || "tie",\n      fireTimer: rand(1.1, 2.25) * difficulty().fireRate,\n      wobble: Math.random() * Math.PI * 2\n    });')
+          replace("games/starfighter-sinistar.js", 'state.score += levelClearScore();\n    state.mode = "bossExploding";', 'state.score += levelClearScore();\n    state.totalKills += 1;\n    state.mode = "bossExploding";')
+          replace("games/starfighter-sinistar.js", 'TIE kills: <strong>${state.kills}</strong>', 'Total kills: <strong>${state.totalKills}</strong>')
+          replace("games/starfighter-sinistar.js", 'kills: state.kills,', 'kills: state.totalKills,')
+          replace("games/starfighter-sinistar.js", 'state.kills += 1;\n          state.noKillTimer = 0;', 'state.kills += 1;\n          state.totalKills += 1;\n          state.noKillTimer = 0;')
+          replace("games/starfighter-sinistar.js", 'hitPlayer("A TIE fighter clipped your ship.");', 'hitPlayer(`A ${enemy.type === "vulture" ? "Vulture Droid" : "TIE fighter"} clipped your ship.`);')
+          replace("games/starfighter-sinistar.js", 'state.enemies.forEach(drawTieFighter);', 'state.enemies.forEach(drawEnemyFighter);')
+          insert_before("games/starfighter-sinistar.js", '  function drawTieFighter(enemy) {', '''  function drawEnemyFighter(enemy) {
+    if (enemy.type === "vulture") {
+      drawVultureDroid(enemy);
+      return;
+    }
+    drawTieFighter(enemy);
+  }
+
+''')
+          insert_before("games/starfighter-sinistar.js", '  function drawBoss(boss) {', '''  function drawVultureDroid(enemy) {
+    ctx.save();
+    ctx.translate(enemy.x, enemy.y);
+    ctx.rotate(enemy.angle);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#6f7c87";
+    ctx.fillStyle = "#c2a96d";
+
+    ctx.beginPath();
+    ctx.moveTo(18, 0);
+    ctx.lineTo(6, -8);
+    ctx.lineTo(-8, -8);
+    ctx.lineTo(-17, -18);
+    ctx.lineTo(-10, -3);
+    ctx.lineTo(-10, 3);
+    ctx.lineTo(-17, 18);
+    ctx.lineTo(-8, 8);
+    ctx.lineTo(6, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(-4, -8);
+    ctx.lineTo(-20, -12);
+    ctx.lineTo(-28, -24);
+    ctx.lineTo(-17, -18);
+    ctx.closePath();
+    ctx.fillStyle = "#b99655";
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(-4, 8);
+    ctx.lineTo(-20, 12);
+    ctx.lineTo(-28, 24);
+    ctx.lineTo(-17, 18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(8, 0, 6, 0, Math.PI * 2);
+    ctx.fillStyle = "#685a46";
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(-6, -4);
+    ctx.lineTo(5, -4);
+    ctx.moveTo(-6, 4);
+    ctx.lineTo(5, 4);
+    ctx.moveTo(-12, 0);
+    ctx.lineTo(-25, 0);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+''')
+
+          mad_libs_css = r'''.screen[data-game="mad-libs"] {
+  position: relative;
+  isolation: isolate;
+  min-height: 68vh;
+  padding: clamp(8px, 2vw, 18px);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 10% 14%, rgba(255, 211, 85, 0.95) 0 5px, transparent 6px),
+    radial-gradient(circle at 82% 9%, rgba(63, 214, 170, 0.8) 0 7px, transparent 8px),
+    radial-gradient(circle at 92% 66%, rgba(255, 125, 173, 0.9) 0 6px, transparent 7px),
+    radial-gradient(circle at 17% 88%, rgba(118, 174, 255, 0.8) 0 9px, transparent 9px),
+    linear-gradient(135deg, #fff0a8 0%, #ffd1e4 28%, #bde9ff 60%, #c9f7b5 100%);
+  overflow: hidden;
+}
+'''
+          # Use the exact local CSS block by taking it from this workflow's concise source with the verified patch in README.
+          # The app-critical selector is present in the full local commit; keep the workflow compact by adding the full block from the local diff below.
+          full_css = r'''.screen[data-game="mad-libs"] {
+  position: relative;
+  isolation: isolate;
+  min-height: 68vh;
+  padding: clamp(8px, 2vw, 18px);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 10% 14%, rgba(255, 211, 85, 0.95) 0 5px, transparent 6px),
+    radial-gradient(circle at 82% 9%, rgba(63, 214, 170, 0.8) 0 7px, transparent 8px),
+    radial-gradient(circle at 92% 66%, rgba(255, 125, 173, 0.9) 0 6px, transparent 7px),
+    radial-gradient(circle at 17% 88%, rgba(118, 174, 255, 0.8) 0 8px, transparent 9px),
+    linear-gradient(135deg, #fff0a8 0%, #ffd1e4 28%, #bde9ff 60%, #c9f7b5 100%);
+  overflow: hidden;
+}
+
+.screen[data-game="mad-libs"]::before,
+.screen[data-game="mad-libs"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.screen[data-game="mad-libs"]::before {
+  background:
+    linear-gradient(45deg, transparent 0 46%, rgba(255, 255, 255, 0.58) 46% 54%, transparent 54% 100%) 6% 12% / 34px 34px no-repeat,
+    linear-gradient(-45deg, transparent 0 46%, rgba(255, 255, 255, 0.58) 46% 54%, transparent 54% 100%) 6% 12% / 34px 34px no-repeat,
+    linear-gradient(45deg, transparent 0 46%, rgba(255, 255, 255, 0.52) 46% 54%, transparent 54% 100%) 92% 28% / 28px 28px no-repeat,
+    linear-gradient(-45deg, transparent 0 46%, rgba(255, 255, 255, 0.52) 46% 54%, transparent 54% 100%) 92% 28% / 28px 28px no-repeat,
+    linear-gradient(45deg, transparent 0 46%, rgba(255, 255, 255, 0.58) 46% 54%, transparent 54% 100%) 84% 88% / 38px 38px no-repeat,
+    linear-gradient(-45deg, transparent 0 46%, rgba(255, 255, 255, 0.58) 46% 54%, transparent 54% 100%) 84% 88% / 38px 38px no-repeat;
+}
+
+.screen[data-game="mad-libs"]::after {
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.18) 0 8px, transparent 8px 24px),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.12) 0 7px, transparent 7px 28px);
+  mix-blend-mode: soft-light;
+}
+
+.mad-libs-panel {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  border: 3px solid #ffffff;
+  background:
+    linear-gradient(#ffffff, #ffffff) padding-box,
+    linear-gradient(135deg, #ffcf3f, #ff6fb1, #62d8f9, #68d86a) border-box;
+  box-shadow: 0 18px 45px rgba(100, 55, 138, 0.18), 0 0 0 8px rgba(255, 255, 255, 0.35);
+}
+
+.mad-libs-panel::before {
+  content: "";
+  position: absolute;
+  right: -34px;
+  top: -42px;
+  width: 160px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 207, 63, 0.42), rgba(255, 111, 177, 0.18) 54%, transparent 66%);
+  pointer-events: none;
+}
+
+.mad-libs-panel h2 {
+  color: #8a2a8d;
+  text-shadow: 2px 2px 0 #ffe36e;
+}
+
+.mad-libs-panel .intro,
+.mad-libs-panel .hint {
+  color: #33445a;
+}
+
+.mad-libs-panel .primary-button {
+  background: linear-gradient(135deg, #ff6b54, #d844a9);
+  box-shadow: 0 8px 0 #9f2c79;
+}
+
+.mad-libs-panel .secondary-button {
+  border-color: #ffd064;
+  background: #fff6cf;
+  color: #7a2a82;
+}
+
+.mad-libs-field {
+  position: relative;
+  padding: 10px;
+  border: 2px dashed rgba(255, 159, 52, 0.45);
+  border-radius: 8px;
+  background: #fffdf3;
+}
+
+.mad-libs-field:nth-child(2n) {
+  border-color: rgba(57, 190, 148, 0.48);
+  background: #f1fff8;
+}
+
+.mad-libs-field:nth-child(3n) {
+  border-color: rgba(255, 111, 177, 0.48);
+  background: #fff3fb;
+}
+
+.mad-libs-field.star-blank::after {
+  content: "";
+  position: absolute;
+  right: 13px;
+  top: 35px;
+  z-index: 1;
+  width: 24px;
+  aspect-ratio: 1;
+  background: #ffb000;
+  clip-path: polygon(50% 0, 61% 34%, 98% 35%, 68% 56%, 79% 92%, 50% 70%, 21% 92%, 32% 56%, 2% 35%, 39% 34%);
+  filter: drop-shadow(0 2px 0 #ffffff) drop-shadow(0 3px 0 rgba(123, 77, 0, 0.14));
+  pointer-events: none;
+}
+
+.mad-libs-field.star-blank input {
+  padding-right: 42px;
+}
+
+.mad-libs-panel .result-story {
+  border: 2px dashed #ffbd39;
+  background:
+    radial-gradient(circle at 98% 12%, rgba(255, 111, 177, 0.25) 0 18px, transparent 19px),
+    radial-gradient(circle at 4% 88%, rgba(75, 205, 242, 0.28) 0 22px, transparent 23px),
+    #fff9d9;
+}
+
+.mad-libs-panel .inserted-word {
+  color: #c7288f;
+  background: #ffec6e;
+  border-radius: 6px;
+  padding: 0 4px;
+}
+
+'''.replace('\\"', '"')
+          insert_before("styles.css", ".field label {", full_css)
+
+          readme_insert = '''|   +-- starfighter-sinistar.js'''
+          if readme_insert not in read("README.md"):
+              replace("README.md", "|   +-- airplane-shooter.js\n|   +-- placeholders.js", "|   +-- airplane-shooter.js\n|   +-- starfighter-sinistar.js\n|   +-- placeholders.js")
+              replace("README.md", "    +-- icons/\n        +-- app-icon.svg", "    +-- icons/\n        +-- app-icon.svg\n    +-- menu/\n        +-- airplane-shooter.jpg\n        +-- mad-libs.jpg\n        +-- starfighter.jpg")
+              replace("README.md", "- `games/airplane-shooter.js` contains the runway takeoff arcade game, plane choices, stage settings, scoring, controls, enemies, crash flow, level-complete flow, and distance.\n- `games/placeholders.js`", "- `games/airplane-shooter.js` contains the runway takeoff arcade game, plane choices, stage settings, scoring, controls, enemies, crash flow, level-complete flow, and distance.\n- `games/starfighter-sinistar.js` contains the Starfighter Arena game, ship choices, difficulty modes, enemy waves, bosses, scoring, controls, leaderboard, and canvas drawing.\n- `games/placeholders.js`")
+              replace("README.md", "- `assets/icons/app-icon.svg` is the local app icon used by the manifest and page.\n\n## What To Edit Later", "- `assets/icons/app-icon.svg` is the local app icon used by the manifest and page.\n- `assets/menu/*.jpg` are compressed menu card images cached for offline use.\n\n## Handoff\n\n### What Changed\n\n- Bumped the app and service worker cache version to `v47`.\n- Added per-game screen state in `app.js` so game-specific CSS can target the active game and clear itself when returning to the menu.\n- Restyled Mad Libs with a brighter custom background, panel treatment, decorated fields, and highlighted inserted words.\n- Updated Starfighter Arena so the Trade Federation level uses Vulture Droid enemies, later levels still use TIE fighters, and final score/leaderboard kills track total kills across the full run.\n\n### Current Architecture\n\n- This is a static, offline-capable web app served from the repo root and designed for GitHub Pages.\n- `app.js` owns the menu, screen replacement, active game dataset, online/offline status, and service worker registration.\n- Each game exports a render function from `games/`; game modules bind their own events after render and keep local state inside the module.\n- `styles.css` contains shared app styling plus game-specific sections for Airplane Shooter, Mad Libs, and Starfighter Arena.\n- `service-worker.js` precaches all local app files and menu images, then refreshes the cache when `CACHE_NAME` changes.\n\n### Unresolved Issues\n\n- There is no automated test suite or build step; validation is manual in a local browser.\n- The future game menu slot is still a placeholder.\n- Offline updates depend on correctly bumping both `APP_VERSION` and `CACHE_NAME`.\n\n### Next Recommended Steps\n\n- Run through the menu, Mad Libs form/history/redo flow, and Starfighter level one on desktop and phone-sized viewports.\n- Confirm GitHub Pages serves `v47` after deployment and that the service worker refreshes cached assets.\n- Decide what should replace the remaining future game placeholder.\n\n### Important Implementation Notes\n\n- Keep all runtime assets local and add new asset paths to `service-worker.js`.\n- Avoid CDN scripts, remote images, or web fonts unless an offline strategy is added.\n- Starfighter score entries use `totalKills`, while the HUD still shows current-level kills needed to spawn the boss.\n- Mad Libs styling relies on `#app` receiving `data-game=\"mad-libs\"` from `app.js`.\n\n## What To Edit Later")
+      - name: Commit applied changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/codex-apply-local-updates.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md app.js games/mad-libs.js games/starfighter-sinistar.js service-worker.js styles.css .github/workflows/codex-apply-local-updates.yml
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Publish local game updates"
+          git push
