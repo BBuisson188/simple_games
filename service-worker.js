@@ -1,4 +1,4 @@
-const CACHE_NAME = "mini-games-v52";
+const CACHE_NAME = "mini-games-v57";
 
 const APP_ASSETS = [
   "./",
@@ -8,6 +8,7 @@ const APP_ASSETS = [
   "./manifest.json",
   "./reset.html",
   "./games/airplane-shooter.js",
+  "./games/chomp_chase_game.js",
   "./games/mad-libs.js",
   "./games/starfighter-sinistar.js",
   "./games/placeholders.js",
@@ -18,6 +19,7 @@ const APP_ASSETS = [
   "./assets/icons/biplane-front.svg",
   "./assets/menu/mad-libs.jpg",
   "./assets/menu/airplane-shooter.jpg",
+  "./assets/menu/chomp-chase.jpg",
   "./assets/menu/starfighter.jpg"
 ];
 

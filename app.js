@@ -1,9 +1,9 @@
 import { renderMadLibs } from "./games/mad-libs.js";
 import { renderAirplaneShooter } from "./games/airplane-shooter.js";
 import { renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
-import { renderPlaceholder } from "./games/placeholders.js";
+import { renderChompChase } from "./games/chomp_chase_game.js";
 
-const APP_VERSION = "v52";
+const APP_VERSION = "v57";
 const ACTIVE_GAME_KEY = "miniGames.activeGame";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
@@ -31,10 +31,11 @@ const games = [
     render: renderStarfighterSinistar
   },
   {
-    id: "future-game-2",
-    title: "Future Game",
-    subtitle: "Placeholder",
-    render: () => renderPlaceholder("Future Game", "This button is saved for another idea.")
+    id: "chomp-chase",
+    title: "Chomp Chase",
+    subtitle: "Maze chase arcade",
+    graphic: "./assets/menu/chomp-chase.jpg",
+    render: renderChompChase
   }
 ];
 
