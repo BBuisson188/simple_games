@@ -1,3 +1,5 @@
+import { createGlobalLeaderboard } from "./global-leaderboard.js";
+
 const planes = {
   biplane: {
     name: "Bi-plane",
@@ -82,6 +84,9 @@ const LIVES_BONUS = 1000;
 const RUNWAY_LIMIT = 24;
 const DISTANCE_RATE = 4.2;
 const LEADERBOARD_KEY = "miniGames.airplaneShooterLeaderboard";
+const PENDING_GLOBAL_SCORES_KEY = "miniGames.airplaneShooterPendingGlobalScores";
+const GAME_ID = "airplane-shooter";
+const globalLeaderboard = createGlobalLeaderboard({ gameId: GAME_ID, pendingKey: PENDING_GLOBAL_SCORES_KEY });
 let currentGame = null;
 
 function renderPlaneButtons() {
@@ -391,6 +396,7 @@ function initAirplaneShooter() {
     updateHud();
 
     const isLastStage = state.selectedStage >= stages.length - 1;
+    const qualifies = scoreQualifies(state.score);
     setOverlay(
       isLastStage ? "Game Complete" : "Level Complete",
       `${renderScoreBreakdown({
@@ -401,9 +407,9 @@ function initAirplaneShooter() {
         livesBonus,
         timeBonus,
         total: state.score
-      })}${isLastStage ? renderFinalScoreForm("Game complete score", state.score) : ""}`,
+      })}${isLastStage && qualifies ? renderFinalScoreForm("Game complete score", state.score) : ""}`,
       isLastStage
-        ? `<button class="primary-button" type="button" data-save-score>Save Score</button><button class="secondary-button" type="button" data-restart-game>Play Again</button>`
+        ? `${qualifies ? `<button class="primary-button" type="button" data-save-score>Save Score</button>` : `<button class="primary-button" type="button" data-show-leaderboard>Leaderboard</button>`}<button class="secondary-button" type="button" data-restart-game>Play Again</button>`
         : `<button class="primary-button" type="button" data-next-level>Next Level</button>`
     );
   }
@@ -435,7 +441,12 @@ function initAirplaneShooter() {
   function getLeaderboard() {
     try {
       const saved = JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || "[]");
-      return Array.isArray(saved) ? saved : [];
+      return Array.isArray(saved)
+        ? saved
+          .filter((entry) => entry && typeof entry.name === "string" && Number.isFinite(entry.score))
+          .sort((a, b) => b.score - a.score || String(a.createdAt || "").localeCompare(String(b.createdAt || "")))
+          .slice(0, 10)
+        : [];
     } catch {
       return [];
     }
@@ -445,7 +456,19 @@ function initAirplaneShooter() {
     localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(entries.slice(0, 10)));
   }
 
+  function scoreQualifies(score) {
+    const entries = getLeaderboard();
+    return score > 0 && (entries.length < 10 || score > entries[entries.length - 1].score);
+  }
+
   function saveScoreFromOverlay() {
+    if (!scoreQualifies(state.score)) {
+      showLeaderboard("Leaderboard", { recentEntry: {
+        score: state.score,
+        stage: state.selectedStage + 1
+      } });
+      return;
+    }
     const nameInput = overlayEl.querySelector("[data-player-name]");
     const name = String(nameInput?.value || "Ace").trim() || "Ace";
     const entries = getLeaderboard();
@@ -461,7 +484,56 @@ function initAirplaneShooter() {
     entries.sort((a, b) => b.score - a.score);
     const rank = entries.findIndex((entry) => entry.id === newEntry.id) + 1;
     saveLeaderboard(entries);
+    globalLeaderboard.queueScore(newEntry.name, newEntry.score);
+    globalLeaderboard.syncPendingScores().catch((error) => {
+      console.warn("Airplane Shooter global score sync failed; local score remains saved.", error);
+    });
     showLeaderboard("Score Saved", { highlightId: newEntry.id, recentEntry: newEntry, rank });
+  }
+
+  function formatGlobalDate(date) {
+    if (!date) return "";
+    try {
+      return new Date(date).toLocaleDateString();
+    } catch {
+      return "";
+    }
+  }
+
+  function renderLeaderboardTable(entries, options = {}) {
+    const highlightId = options.highlightId || null;
+    const isGlobal = options.source === "global";
+    const rows = entries.length
+      ? entries.map((entry, index) => `
+        <tr class="${entry.id === highlightId ? "is-new-score" : ""}">
+          <td>${index + 1}</td>
+          <td>${escapeHtml(entry.name)}${entry.id === highlightId ? ` <span class="new-score-badge">NEW</span>` : ""}</td>
+          <td>${entry.score}</td>
+          <td>${isGlobal ? escapeHtml(formatGlobalDate(entry.date)) : entry.stage}</td>
+        </tr>
+      `).join("")
+      : `<tr><td colspan="4">No scores yet.</td></tr>`;
+    const extraRow = options.recentEntry && !entries.some((entry) => entry.id === options.recentEntry.id)
+      ? `
+        <tr class="score-divider"><td colspan="4"></td></tr>
+        <tr class="is-new-score">
+          <td>${options.rank ? `Rank ${options.rank}` : "-"}</td>
+          <td>Your score <span class="new-score-badge">NEW</span></td>
+          <td>${options.recentEntry.score}</td>
+          <td>${isGlobal ? "" : options.recentEntry.stage}</td>
+        </tr>
+      `
+      : "";
+    const sourceLabel = isGlobal ? "Global" : "Local";
+    const note = options.error ? `<p class="intro">Global leaderboard unavailable; showing local scores.</p>` : "";
+    return `
+      ${note}
+      <p class="intro">${sourceLabel} top 10</p>
+      <table class="leaderboard-table">
+        <thead><tr><th>#</th><th>Name</th><th>Score</th><th>${isGlobal ? "Date" : "Stage"}</th></tr></thead>
+        <tbody>${rows}${extraRow}</tbody>
+      </table>
+    `;
   }
 
   function showLeaderboard(title = "Leaderboard", options = {}) {
@@ -474,39 +546,21 @@ function initAirplaneShooter() {
     }
 
     const entries = getLeaderboard();
-    const highlightId = options.highlightId || null;
-    const rows = entries.length
-      ? entries.map((entry, index) => `
-        <tr class="${entry.id === highlightId ? "is-new-score" : ""}">
-          <td>${index + 1}</td>
-          <td>${escapeHtml(entry.name)}${entry.id === highlightId ? ` <span class="new-score-badge">NEW</span>` : ""}</td>
-          <td>${entry.score}</td>
-          <td>${entry.stage}</td>
-        </tr>
-      `).join("")
-      : `<tr><td colspan="4">No scores yet.</td></tr>`;
-    const extraRow = options.recentEntry && !entries.some((entry) => entry.id === options.recentEntry.id)
-      ? `
-        <tr class="score-divider"><td colspan="4"></td></tr>
-        <tr class="is-new-score">
-          <td>Rank ${options.rank}</td>
-          <td>Your score <span class="new-score-badge">NEW</span></td>
-          <td>${options.recentEntry.score}</td>
-          <td>${options.recentEntry.stage}</td>
-        </tr>
-      `
-      : "";
-
     setOverlay(
       title,
-      `
-        <table class="leaderboard-table">
-          <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Stage</th></tr></thead>
-          <tbody>${rows}${extraRow}</tbody>
-        </table>
-      `,
+      renderLeaderboardTable(entries, { ...options, source: "local" }),
       `<button class="primary-button" type="button" data-close-overlay>Close</button><button class="secondary-button danger-button" type="button" data-reset-leaderboard>Reset</button>`
     );
+    globalLeaderboard.getBestScores(entries).then((result) => {
+      if (overlayEl.hidden || !overlayEl.querySelector(".leaderboard-table")) return;
+      setOverlay(
+        `${title} (${result.source === "global" ? "Global" : "Local"})`,
+        renderLeaderboardTable(result.scores, { ...options, source: result.source, error: result.error }),
+        `<button class="primary-button" type="button" data-close-overlay>Close</button><button class="secondary-button danger-button" type="button" data-reset-leaderboard>Reset</button>`
+      );
+    }).catch((error) => {
+      console.warn("Airplane Shooter global leaderboard refresh failed.", error);
+    });
   }
 
   function confirmResetLeaderboard() {
@@ -584,8 +638,8 @@ function initAirplaneShooter() {
     if (state.lives <= 0) {
       setOverlay(
         "Game Over",
-        renderFinalScoreForm("Final score", state.score),
-        `<button class="primary-button" type="button" data-save-score>Save Score</button><button class="secondary-button" type="button" data-restart-game>Restart</button>`
+        scoreQualifies(state.score) ? renderFinalScoreForm("Final score", state.score) : `<p>Final score: <strong>${state.score}</strong></p>`,
+        `${scoreQualifies(state.score) ? `<button class="primary-button" type="button" data-save-score>Save Score</button>` : `<button class="primary-button" type="button" data-show-leaderboard>Leaderboard</button>`}<button class="secondary-button" type="button" data-restart-game>Restart</button>`
       );
       return;
     }

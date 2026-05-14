@@ -1,3 +1,5 @@
+import { createGlobalLeaderboard } from "./global-leaderboard.js";
+
 /*
   Chomp Chase Arcade - app module.
 
@@ -9,6 +11,9 @@
   const STORAGE_KEY = "chomp-chase-high-score";
   const LEADERBOARD_KEY = "chomp-chase-leaderboard";
   const LAST_PLAYER_NAME_KEY = "chomp-chase-player-name";
+  const PENDING_GLOBAL_SCORES_KEY = "chomp-chase-pending-global-scores";
+  const GAME_ID = "chomp-chase";
+  const globalLeaderboard = createGlobalLeaderboard({ gameId: GAME_ID, pendingKey: PENDING_GLOBAL_SCORES_KEY });
 
   const MAZE_LAYOUT = [
     "#####################",
@@ -565,6 +570,7 @@
           ? saved
             .filter((entry) => entry && typeof entry.name === "string" && Number.isFinite(entry.score))
             .sort((a, b) => b.score - a.score || String(a.savedAt || "").localeCompare(String(b.savedAt || "")))
+            .slice(0, 10)
           : [];
       } catch {
         return [];
@@ -613,15 +619,26 @@
     }
 
     renderLeaderboardRows(entries, options = {}) {
+      const isGlobal = options.source === "global";
       const rows = entries.slice(0, 10).map((entry, index) => {
         const highlight = entry.id && entry.id === options.highlightId ? ' class="cc-highlight"' : "";
-        return `<tr${highlight}><td>${index + 1}</td><td>${escapeHtml(entry.name)}</td><td>${entry.score.toLocaleString()}</td><td>${entry.level}</td></tr>`;
+        const finalColumn = isGlobal ? escapeHtml(this.formatGlobalDate(entry.date)) : entry.level;
+        return `<tr${highlight}><td>${index + 1}</td><td>${escapeHtml(entry.name)}</td><td>${entry.score.toLocaleString()}</td><td>${finalColumn}</td></tr>`;
       }).join("");
       const emptyRow = `<tr><td colspan="4">No saved scores yet.</td></tr>`;
       const recentRow = options.recentScore && !options.recentQualifies
         ? `<tr class="cc-highlight"><td>-</td><td>Your score</td><td>${options.recentScore.toLocaleString()}</td><td>${this.game.levelIndex + 1}</td></tr>`
         : "";
       return rows || recentRow ? `${rows}${recentRow}` : emptyRow;
+    }
+
+    formatGlobalDate(date) {
+      if (!date) return "";
+      try {
+        return new Date(date).toLocaleDateString();
+      } catch {
+        return "";
+      }
     }
 
     saveScoreFromOverlay() {
@@ -645,6 +662,10 @@
         .sort((a, b) => b.score - a.score || a.savedAt.localeCompare(b.savedAt))
         .slice(0, 10);
       this.saveLeaderboard(entries);
+      globalLeaderboard.queueScore(entry.name, entry.score);
+      globalLeaderboard.syncPendingScores().catch((error) => {
+        console.warn("Chomp Chase global score sync failed; local score remains saved.", error);
+      });
       this.showLeaderboard("Score Saved", { highlightId: entry.id });
     }
 
@@ -655,11 +676,20 @@
       const recentQualifies = options.recentScore ? this.scoreQualifies(options.recentScore) : false;
       this.overlayEl.classList.add("cc-show");
       this.overlayTitleEl.textContent = title;
+      const renderTable = (scores, renderOptions = {}) => {
+        const isGlobal = renderOptions.source === "global";
+        const note = renderOptions.error ? `<p>Global leaderboard unavailable; showing local scores.</p>` : "";
+        return `
+          ${note}
+          <p>${isGlobal ? "Global" : "Local"} top 10</p>
+          <table class="cc-leaderboard">
+            <thead><tr><th>#</th><th>Name</th><th>Score</th><th>${isGlobal ? "Date" : "Level"}</th></tr></thead>
+            <tbody>${this.renderLeaderboardRows(scores, { ...renderOptions, recentQualifies })}</tbody>
+          </table>
+        `;
+      };
       this.overlayCopyEl.innerHTML = `
-        <table class="cc-leaderboard">
-          <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Level</th></tr></thead>
-          <tbody>${this.renderLeaderboardRows(entries, { ...options, recentQualifies })}</tbody>
-        </table>
+        ${renderTable(entries, { ...options, source: "local" })}
       `;
       const resumeButton = this.game.status === "paused"
         ? `<button type="button" class="cc-button" data-cc-overlay-resume>Resume</button>`
@@ -668,6 +698,13 @@
         <button type="button" class="cc-button cc-button-primary" data-cc-overlay-start>New Game</button>
         ${resumeButton}
       `;
+      globalLeaderboard.getBestScores(entries).then((result) => {
+        if (this.destroyed || this.overlayMode !== "leaderboard") return;
+        this.overlayTitleEl.textContent = `${title} (${result.source === "global" ? "Global" : "Local"})`;
+        this.overlayCopyEl.innerHTML = renderTable(result.scores, { ...options, source: result.source, error: result.error });
+      }).catch((error) => {
+        console.warn("Chomp Chase global leaderboard refresh failed.", error);
+      });
     }
 
     makePellets() {

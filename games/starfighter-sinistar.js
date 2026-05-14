@@ -1,3 +1,5 @@
+import { createGlobalLeaderboard } from "./global-leaderboard.js";
+
 const ships = {
   falcon: { name: "Millennium Falcon", note: "Heavy freighter, wider double lasers, slower fire.", radius: 18, acceleration: 520, drag: 0.978, maxSpeed: 255, laserCount: 2, laserSpread: 9, fireCooldown: 0.24 },
   xwing: { name: "X-wing Fighter", note: "Alternates center shots with twin wingtip cannons.", radius: 14, acceleration: 640, drag: 0.976, maxSpeed: 305, laserCount: 1, laserSpread: 0, fireCooldown: 0.14 },
@@ -37,6 +39,9 @@ const LEADERBOARD_KEY_BY_DIFFICULTY = {
   3: `${LEADERBOARD_KEY}.difficulty3`
 };
 const LAST_PLAYER_NAME_KEY = "miniGames.starfighterArenaLastName";
+const PENDING_GLOBAL_SCORES_KEY = "miniGames.starfighterArenaPendingGlobalScores";
+const GAME_ID = "starfighter-arena";
+const globalLeaderboard = createGlobalLeaderboard({ gameId: GAME_ID, pendingKey: PENDING_GLOBAL_SCORES_KEY });
 const COUNTDOWN_TIME = 3.8;
 const EXPLOSION_SEQUENCE_TIME = 3.6;
 let currentStarfighterGame = null;
@@ -457,9 +462,11 @@ function initStarfighterSinistar() {
   }
 
   function renderScoreButtons(extraButtons) {
-    const saveButton = state.difficulty === 0 ? "" : `<button class="primary-button" type="button" data-star-save-score>Save Score</button>`;
+    const canSave = state.difficulty !== 0 && scoreQualifies(state.score);
+    const saveButton = canSave ? `<button class="primary-button" type="button" data-star-save-score>Save Score</button>` : "";
     const testNote = state.difficulty === 0 ? `<p class="star-test-note">Difficulty 0 is test mode, so scores are not saved.</p>` : "";
-    return `${testNote}${saveButton}${extraButtons}`;
+    const leaderboardButton = state.difficulty !== 0 && !canSave ? `<button class="primary-button" type="button" data-star-show-leaderboard>Leaderboard</button>` : "";
+    return `${testNote}${saveButton}${leaderboardButton}${extraButtons}`;
   }
 
   function getLeaderboard() {
@@ -467,7 +474,12 @@ function initStarfighterSinistar() {
     if (!key) return [];
     try {
       const saved = JSON.parse(localStorage.getItem(key) || "[]");
-      return Array.isArray(saved) ? saved : [];
+      return Array.isArray(saved)
+        ? saved
+          .filter((entry) => entry && typeof entry.name === "string" && Number.isFinite(entry.score))
+          .sort((a, b) => b.score - a.score || String(a.createdAt || "").localeCompare(String(b.createdAt || "")))
+          .slice(0, 10)
+        : [];
     } catch {
       return [];
     }
@@ -476,6 +488,11 @@ function initStarfighterSinistar() {
   function saveLeaderboard(entries) {
     const key = leaderboardKey();
     if (key) localStorage.setItem(key, JSON.stringify(entries.slice(0, 10)));
+  }
+
+  function scoreQualifies(score) {
+    const entries = getLeaderboard();
+    return score > 0 && (entries.length < 10 || score > entries[entries.length - 1].score);
   }
 
   function getLastPlayerName() {
@@ -499,6 +516,13 @@ function initStarfighterSinistar() {
       showLeaderboard("Test Mode");
       return;
     }
+    if (!scoreQualifies(state.score)) {
+      showLeaderboard("Leaderboard", { recentEntry: {
+        score: state.score,
+        kills: state.totalKills
+      } });
+      return;
+    }
     const nameInput = overlayEl.querySelector("[data-player-name]");
     const name = String(nameInput?.value || "Ace").trim() || "Ace";
     saveLastPlayerName(name);
@@ -517,7 +541,53 @@ function initStarfighterSinistar() {
     entries.sort((a, b) => b.score - a.score);
     const rank = entries.findIndex((entry) => entry.id === newEntry.id) + 1;
     saveLeaderboard(entries);
+    globalLeaderboard.queueScore(newEntry.name, newEntry.score);
+    globalLeaderboard.syncPendingScores().catch((error) => {
+      console.warn("Starfighter Arena global score sync failed; local score remains saved.", error);
+    });
     showLeaderboard("Score Saved", { highlightId: newEntry.id, recentEntry: newEntry, rank });
+  }
+
+  function formatGlobalDate(date) {
+    if (!date) return "";
+    try {
+      return new Date(date).toLocaleDateString();
+    } catch {
+      return "";
+    }
+  }
+
+  function renderLeaderboardTable(entries, options = {}) {
+    const highlightId = options.highlightId || null;
+    const isGlobal = options.source === "global";
+    const rows = entries.length
+      ? entries.map((entry, index) => `
+        <tr class="${entry.id === highlightId ? "is-new-score" : ""}">
+          <td>${index + 1}</td>
+          <td>${escapeHtml(entry.name)}${entry.id === highlightId ? ` <span class="new-score-badge">NEW</span>` : ""}</td>
+          <td>${entry.score}</td>
+          <td>${isGlobal ? escapeHtml(formatGlobalDate(entry.date)) : entry.kills}</td>
+        </tr>
+      `).join("")
+      : `<tr><td colspan="4">No scores yet.</td></tr>`;
+    const extraRow = options.recentEntry && !entries.some((entry) => entry.id === options.recentEntry.id)
+      ? `
+        <tr class="score-divider"><td colspan="4"></td></tr>
+        <tr class="is-new-score">
+          <td>${options.rank ? `Rank ${options.rank}` : "-"}</td>
+          <td>Your score <span class="new-score-badge">NEW</span></td>
+          <td>${options.recentEntry.score}</td>
+          <td>${isGlobal ? "" : options.recentEntry.kills}</td>
+        </tr>
+      `
+      : "";
+    const sourceLabel = isGlobal ? "Global" : `Local Difficulty ${state.difficulty}`;
+    const note = options.error ? `<p class="intro">Global leaderboard unavailable; showing local scores.</p>` : "";
+    return `
+      ${note}
+      <p class="intro">${sourceLabel} top 10</p>
+      <table class="leaderboard-table"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>${isGlobal ? "Date" : "Kills"}</th></tr></thead><tbody>${rows}${extraRow}</tbody></table>
+    `;
   }
 
   function showLeaderboard(title = "Leaderboard", options = {}) {
@@ -537,33 +607,21 @@ function initStarfighterSinistar() {
       return;
     }
     const entries = getLeaderboard();
-    const highlightId = options.highlightId || null;
-    const rows = entries.length
-      ? entries.map((entry, index) => `
-        <tr class="${entry.id === highlightId ? "is-new-score" : ""}">
-          <td>${index + 1}</td>
-          <td>${escapeHtml(entry.name)}${entry.id === highlightId ? ` <span class="new-score-badge">NEW</span>` : ""}</td>
-          <td>${entry.score}</td>
-          <td>${entry.kills}</td>
-        </tr>
-      `).join("")
-      : `<tr><td colspan="4">No scores yet.</td></tr>`;
-    const extraRow = options.recentEntry && !entries.some((entry) => entry.id === options.recentEntry.id)
-      ? `
-        <tr class="score-divider"><td colspan="4"></td></tr>
-        <tr class="is-new-score">
-          <td>Rank ${options.rank}</td>
-          <td>Your score <span class="new-score-badge">NEW</span></td>
-          <td>${options.recentEntry.score}</td>
-          <td>${options.recentEntry.kills}</td>
-        </tr>
-      `
-      : "";
     setOverlay(
       `${title}: Difficulty ${state.difficulty}`,
-      `<table class="leaderboard-table"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Kills</th></tr></thead><tbody>${rows}${extraRow}</tbody></table>`,
+      renderLeaderboardTable(entries, { ...options, source: "local" }),
       `<button class="primary-button" type="button" data-star-select-again>Play Again</button><button class="secondary-button" type="button" data-star-close-overlay>Close</button><button class="secondary-button danger-button" type="button" data-star-reset-leaderboard>Reset</button>`
     );
+    globalLeaderboard.getBestScores(entries).then((result) => {
+      if (overlayEl.hidden || !overlayEl.querySelector(".leaderboard-table")) return;
+      setOverlay(
+        `${title} (${result.source === "global" ? "Global" : `Local Difficulty ${state.difficulty}`})`,
+        renderLeaderboardTable(result.scores, { ...options, source: result.source, error: result.error }),
+        `<button class="primary-button" type="button" data-star-select-again>Play Again</button><button class="secondary-button" type="button" data-star-close-overlay>Close</button><button class="secondary-button danger-button" type="button" data-star-reset-leaderboard>Reset</button>`
+      );
+    }).catch((error) => {
+      console.warn("Starfighter Arena global leaderboard refresh failed.", error);
+    });
   }
 
   function confirmResetLeaderboard() {
