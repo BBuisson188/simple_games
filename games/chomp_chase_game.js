@@ -598,9 +598,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
     }
 
     scoreQualifies(score) {
-      if (score <= 0) return false;
-      const entries = this.loadLeaderboard();
-      return entries.length < 10 || score > entries[entries.length - 1].score;
+      return score > 0;
     }
 
     rankScore(score) {
@@ -619,10 +617,9 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
     }
 
     renderLeaderboardRows(entries, options = {}) {
-      const isGlobal = options.source === "global";
       const rows = entries.slice(0, 10).map((entry, index) => {
         const highlight = entry.id && entry.id === options.highlightId ? ' class="cc-highlight"' : "";
-        const finalColumn = isGlobal ? escapeHtml(this.formatGlobalDate(entry.date)) : entry.level;
+        const finalColumn = entry.pending ? "Pending" : escapeHtml(this.formatGlobalDate(entry.date || entry.savedAt));
         return `<tr${highlight}><td>${index + 1}</td><td>${escapeHtml(entry.name)}</td><td>${entry.score.toLocaleString()}</td><td>${finalColumn}</td></tr>`;
       }).join("");
       const emptyRow = `<tr><td colspan="4">No saved scores yet.</td></tr>`;
@@ -672,24 +669,22 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
     showLeaderboard(title = "Leaderboard", options = {}) {
       if (this.game.status === "playing") this.game.status = "paused";
       this.overlayMode = "leaderboard";
-      const entries = this.loadLeaderboard();
+      const entries = globalLeaderboard.getDisplayScores(this.loadLeaderboard());
       const recentQualifies = options.recentScore ? this.scoreQualifies(options.recentScore) : false;
       this.overlayEl.classList.add("cc-show");
       this.overlayTitleEl.textContent = title;
       const renderTable = (scores, renderOptions = {}) => {
-        const isGlobal = renderOptions.source === "global";
-        const note = renderOptions.error ? `<p>Global leaderboard unavailable; showing local scores.</p>` : "";
+        const note = renderOptions.error ? `<p>Global sync unavailable; showing saved leaderboard data and pending scores.</p>` : "";
         return `
           ${note}
-          <p>${isGlobal ? "Global" : "Local"} top 10</p>
           <table class="cc-leaderboard">
-            <thead><tr><th>#</th><th>Name</th><th>Score</th><th>${isGlobal ? "Date" : "Level"}</th></tr></thead>
+            <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Date</th></tr></thead>
             <tbody>${this.renderLeaderboardRows(scores, { ...renderOptions, recentQualifies })}</tbody>
           </table>
         `;
       };
       this.overlayCopyEl.innerHTML = `
-        ${renderTable(entries, { ...options, source: "local" })}
+        ${renderTable(entries, options)}
       `;
       const resumeButton = this.game.status === "paused"
         ? `<button type="button" class="cc-button" data-cc-overlay-resume>Resume</button>`
@@ -698,10 +693,10 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
         <button type="button" class="cc-button cc-button-primary" data-cc-overlay-start>New Game</button>
         ${resumeButton}
       `;
-      globalLeaderboard.getBestScores(entries).then((result) => {
+      globalLeaderboard.getBestScores(this.loadLeaderboard()).then((result) => {
         if (this.destroyed || this.overlayMode !== "leaderboard") return;
-        this.overlayTitleEl.textContent = `${title} (${result.source === "global" ? "Global" : "Local"})`;
-        this.overlayCopyEl.innerHTML = renderTable(result.scores, { ...options, source: result.source, error: result.error });
+        this.overlayTitleEl.textContent = title;
+        this.overlayCopyEl.innerHTML = renderTable(result.scores, { ...options, error: result.error });
       }).catch((error) => {
         console.warn("Chomp Chase global leaderboard refresh failed.", error);
       });

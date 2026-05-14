@@ -66,19 +66,19 @@ That starts a local server and opens the app at `http://localhost:8000`.
 
 ## Leaderboards
 
-Airplane Shooter, Starfighter Arena, and Chomp Chase keep their local top 10 leaderboards as the fallback source. When Firebase is reachable, each game reads a global Firestore top 10 ordered by score descending with `createdAt` as the tie-breaker where Firestore indexing allows it. Named scores are saved locally first, queued in localStorage, then uploaded with `addDoc` only if they still qualify for that game's global top 10 at sync time.
+Airplane Shooter, Starfighter Arena, and Chomp Chase show one leaderboard. Firebase is the source of truth; localStorage is only used to cache the last known leaderboard and hold pending offline scores. When Firebase is reachable, each game reads a global Firestore top 10 ordered by score descending with `createdAt` as the tie-breaker where Firestore indexing allows it. Named scores are saved locally first, queued in localStorage, then uploaded with `addDoc` only if they still qualify for that game's global top 10 at sync time.
 
 Browser Firestore access is intentionally limited to reading global scores and creating new score documents. The client does not use Firebase Authentication and never updates or deletes Firestore documents.
 
 Each Firestore score document contains exactly `playerName`, `score`, `gameId`, and `createdAt`.
 
-| Game | gameId | Firestore path | Local leaderboard key | Pending sync key |
+| Game | gameId | Firestore path | Local fallback key | Pending sync key |
 | --- | --- | --- | --- | --- |
 | Airplane Shooter | `airplane-shooter` | `leaderboards/airplane-shooter/scores` | `miniGames.airplaneShooterLeaderboard` | `miniGames.airplaneShooterPendingGlobalScores` |
 | Starfighter Arena | `starfighter-arena` | `leaderboards/starfighter-arena/scores` | `miniGames.starfighterArenaLeaderboard`, `.difficulty2`, `.difficulty3` | `miniGames.starfighterArenaPendingGlobalScores` |
 | Chomp Chase | `chomp-chase` | `leaderboards/chomp-chase/scores` | `chomp-chase-leaderboard` | `chomp-chase-pending-global-scores` |
 
-Additional local keys: Starfighter saves the last player name at `miniGames.starfighterArenaLastName`; Chomp Chase saves its high score and last player name at `chomp-chase-high-score` and `chomp-chase-player-name`.
+Each pending sync key also has a `.globalCache` companion key that stores the last known Firestore top 10 for offline display. Additional local keys: Starfighter saves the last player name at `miniGames.starfighterArenaLastName`; Chomp Chase saves its high score and last player name at `chomp-chase-high-score` and `chomp-chase-player-name`.
 
 ## GitHub Pages Deployment
 

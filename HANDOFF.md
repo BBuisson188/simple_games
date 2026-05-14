@@ -4,11 +4,11 @@ Read this file before making major project changes.
 
 ## Current Implementation Status
 
-- App and service worker cache version are currently `v58`.
+- App and service worker cache version are currently `v59`.
 - Mad Libs has custom game-specific styling, saved local history, and redo flow.
 - Starfighter Arena uses Vulture Droid enemies in the Trade Federation level and TIE fighters in later levels.
 - Starfighter final score and leaderboard entries use `totalKills` across the full run.
-- Airplane Shooter, Starfighter Arena, and Chomp Chase have local top 10 leaderboards plus create-only Firestore global leaderboard sync.
+- Airplane Shooter, Starfighter Arena, and Chomp Chase show one leaderboard backed by Firestore, with localStorage only used as cache/pending fallback.
 - The future game menu slot is still a placeholder.
 
 ## Current Architecture
@@ -33,10 +33,11 @@ Read this file before making major project changes.
 
 - Firestore paths: `leaderboards/airplane-shooter/scores`, `leaderboards/starfighter-arena/scores`, and `leaderboards/chomp-chase/scores`.
 - Firestore document shape is exactly `playerName: string`, `score: integer`, `gameId: string`, and `createdAt: server timestamp`.
-- Local leaderboard keys: `miniGames.airplaneShooterLeaderboard`; `miniGames.starfighterArenaLeaderboard`, `miniGames.starfighterArenaLeaderboard.difficulty2`, `miniGames.starfighterArenaLeaderboard.difficulty3`; and `chomp-chase-leaderboard`.
+- Local fallback keys: `miniGames.airplaneShooterLeaderboard`; `miniGames.starfighterArenaLeaderboard`, `miniGames.starfighterArenaLeaderboard.difficulty2`, `miniGames.starfighterArenaLeaderboard.difficulty3`; and `chomp-chase-leaderboard`.
 - Pending global sync keys: `miniGames.airplaneShooterPendingGlobalScores`, `miniGames.starfighterArenaPendingGlobalScores`, and `chomp-chase-pending-global-scores`.
+- Cached global leaderboard keys are the pending sync keys with `.globalCache` appended.
 - Chomp Chase also stores `chomp-chase-high-score` and `chomp-chase-player-name`; Starfighter stores `miniGames.starfighterArenaLastName`.
-- Named scores save locally first, then queue for Firestore. Pending scores only upload if they still qualify for the global top 10 at sync time; non-qualifying pending scores are removed only from localStorage.
+- Named positive scores save locally first, then queue for Firestore. Pending scores only upload if they still qualify for the global top 10 at sync time; non-qualifying pending scores are removed only from localStorage.
 
 ## Unresolved Issues
 

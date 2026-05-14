@@ -457,8 +457,7 @@ function initAirplaneShooter() {
   }
 
   function scoreQualifies(score) {
-    const entries = getLeaderboard();
-    return score > 0 && (entries.length < 10 || score > entries[entries.length - 1].score);
+    return score > 0;
   }
 
   function saveScoreFromOverlay() {
@@ -502,14 +501,13 @@ function initAirplaneShooter() {
 
   function renderLeaderboardTable(entries, options = {}) {
     const highlightId = options.highlightId || null;
-    const isGlobal = options.source === "global";
     const rows = entries.length
       ? entries.map((entry, index) => `
         <tr class="${entry.id === highlightId ? "is-new-score" : ""}">
           <td>${index + 1}</td>
           <td>${escapeHtml(entry.name)}${entry.id === highlightId ? ` <span class="new-score-badge">NEW</span>` : ""}</td>
           <td>${entry.score}</td>
-          <td>${isGlobal ? escapeHtml(formatGlobalDate(entry.date)) : entry.stage}</td>
+          <td>${entry.pending ? "Pending" : escapeHtml(formatGlobalDate(entry.date || entry.createdAt))}</td>
         </tr>
       `).join("")
       : `<tr><td colspan="4">No scores yet.</td></tr>`;
@@ -520,17 +518,15 @@ function initAirplaneShooter() {
           <td>${options.rank ? `Rank ${options.rank}` : "-"}</td>
           <td>Your score <span class="new-score-badge">NEW</span></td>
           <td>${options.recentEntry.score}</td>
-          <td>${isGlobal ? "" : options.recentEntry.stage}</td>
+          <td>${options.recentEntry.pending ? "Pending" : escapeHtml(formatGlobalDate(options.recentEntry.date || options.recentEntry.createdAt))}</td>
         </tr>
       `
       : "";
-    const sourceLabel = isGlobal ? "Global" : "Local";
-    const note = options.error ? `<p class="intro">Global leaderboard unavailable; showing local scores.</p>` : "";
+    const note = options.error ? `<p class="intro">Global sync unavailable; showing saved leaderboard data and pending scores.</p>` : "";
     return `
       ${note}
-      <p class="intro">${sourceLabel} top 10</p>
       <table class="leaderboard-table">
-        <thead><tr><th>#</th><th>Name</th><th>Score</th><th>${isGlobal ? "Date" : "Stage"}</th></tr></thead>
+        <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Date</th></tr></thead>
         <tbody>${rows}${extraRow}</tbody>
       </table>
     `;
@@ -545,17 +541,17 @@ function initAirplaneShooter() {
       state.bankVelocity = 0;
     }
 
-    const entries = getLeaderboard();
+    const entries = globalLeaderboard.getDisplayScores(getLeaderboard());
     setOverlay(
       title,
-      renderLeaderboardTable(entries, { ...options, source: "local" }),
+      renderLeaderboardTable(entries, options),
       `<button class="primary-button" type="button" data-close-overlay>Close</button><button class="secondary-button danger-button" type="button" data-reset-leaderboard>Reset</button>`
     );
-    globalLeaderboard.getBestScores(entries).then((result) => {
+    globalLeaderboard.getBestScores(getLeaderboard()).then((result) => {
       if (overlayEl.hidden || !overlayEl.querySelector(".leaderboard-table")) return;
       setOverlay(
-        `${title} (${result.source === "global" ? "Global" : "Local"})`,
-        renderLeaderboardTable(result.scores, { ...options, source: result.source, error: result.error }),
+        title,
+        renderLeaderboardTable(result.scores, { ...options, error: result.error }),
         `<button class="primary-button" type="button" data-close-overlay>Close</button><button class="secondary-button danger-button" type="button" data-reset-leaderboard>Reset</button>`
       );
     }).catch((error) => {

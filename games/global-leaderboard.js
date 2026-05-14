@@ -1,4 +1,6 @@
 const LEADERBOARD_LIMIT = 10;
+const FIREBASE_APP_URL = "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+const FIREBASE_FIRESTORE_URL = "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyASExWcY08MBQApypJPwPLsmHQtlyAwb5Q",
@@ -20,8 +22,8 @@ const firebaseState = {
 async function loadFirebaseSdk() {
   if (firebaseState.sdk) return firebaseState.sdk;
   const [{ initializeApp }, firestore] = await Promise.all([
-    import("firebase/app"),
-    import("firebase/firestore")
+    import(FIREBASE_APP_URL),
+    import(FIREBASE_FIRESTORE_URL)
   ]);
   firebaseState.sdk = { initializeApp, ...firestore };
   return firebaseState.sdk;
@@ -91,6 +93,7 @@ function writeJson(key, value) {
 
 export function createGlobalLeaderboard({ gameId, pendingKey }) {
   const firestorePath = ["leaderboards", gameId, "scores"];
+  const cacheKey = `${pendingKey}.globalCache`;
   let syncing = false;
 
   async function scoresCollection() {
@@ -112,6 +115,32 @@ export function createGlobalLeaderboard({ gameId, pendingKey }) {
       .slice(0, LEADERBOARD_LIMIT);
   }
 
+  function getCachedScores(fallbackScores = []) {
+    const cached = readJson(cacheKey)
+      .filter((entry) => entry && typeof entry.score === "number")
+      .map((entry) => ({
+        id: String(entry.id || `${entry.date || Date.now()}-${entry.score}`),
+        name: normalizeName(entry.name),
+        score: sanitizeScore(entry.score),
+        date: String(entry.date || "")
+      }))
+      .filter((entry) => entry.score > 0);
+    const fallback = fallbackScores
+      .filter((entry) => entry && typeof entry.score === "number")
+      .map((entry) => ({
+        id: String(entry.id || `${entry.createdAt || entry.savedAt || Date.now()}-${entry.score}`),
+        name: normalizeName(entry.name),
+        score: sanitizeScore(entry.score),
+        date: String(entry.date || entry.createdAt || entry.savedAt || "")
+      }))
+      .filter((entry) => entry.score > 0);
+    return (cached.length ? cached : fallback).sort(compareScores).slice(0, LEADERBOARD_LIMIT);
+  }
+
+  function saveCachedScores(scores) {
+    writeJson(cacheKey, scores.sort(compareScores).slice(0, LEADERBOARD_LIMIT));
+  }
+
   function savePendingScores(scores) {
     writeJson(pendingKey, scores.sort(compareScores).slice(0, LEADERBOARD_LIMIT));
   }
@@ -125,6 +154,21 @@ export function createGlobalLeaderboard({ gameId, pendingKey }) {
     };
     savePendingScores([...getPendingScores(), entry]);
     return entry;
+  }
+
+  function getDisplayScores(fallbackScores = []) {
+    const pending = getPendingScores().map((entry) => ({ ...entry, pending: true }));
+    const combined = [...getCachedScores(fallbackScores), ...pending];
+    const seen = new Set();
+    return combined
+      .sort(compareScores)
+      .filter((entry) => {
+        const key = entry.id || `${entry.name}-${entry.score}-${entry.date}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, LEADERBOARD_LIMIT);
   }
 
   async function getGlobalScores() {
@@ -147,7 +191,7 @@ export function createGlobalLeaderboard({ gameId, pendingKey }) {
       snapshot = await readSnapshot(false);
     }
 
-    return snapshot.docs
+    const scores = snapshot.docs
       .map((doc) => {
         const data = doc.data();
         return {
@@ -160,6 +204,8 @@ export function createGlobalLeaderboard({ gameId, pendingKey }) {
       .filter((entry) => entry.score > 0)
       .sort(compareScores)
       .slice(0, LEADERBOARD_LIMIT);
+    saveCachedScores(scores);
+    return scores;
   }
 
   async function syncPendingScores() {
@@ -212,8 +258,8 @@ export function createGlobalLeaderboard({ gameId, pendingKey }) {
       await syncPendingScores();
       return { source: "global", scores: await getGlobalScores(), error: "" };
     } catch (error) {
-      console.warn("Global leaderboard unavailable; using local leaderboard.", error);
-      return { source: "local", scores: localScores, error: error?.message || String(error) };
+      console.warn("Global leaderboard unavailable; using cached leaderboard.", error);
+      return { source: "cache", scores: getDisplayScores(localScores), error: error?.message || String(error) };
     }
   }
 
@@ -228,9 +274,12 @@ export function createGlobalLeaderboard({ gameId, pendingKey }) {
   return {
     gameId,
     pendingKey,
+    cacheKey,
     queueScore,
     getGlobalScores,
     getBestScores,
+    getDisplayScores,
+    getPendingScores,
     syncPendingScores,
     scoreQualifiesForList
   };
