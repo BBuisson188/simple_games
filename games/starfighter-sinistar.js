@@ -176,6 +176,7 @@ function initStarfighterSinistar() {
 
   function setOverlay(title, detail, buttons) {
     overlayEl.hidden = false;
+    delete overlayEl.dataset.scoreSaved;
     overlayEl.innerHTML = `<div class="overlay-card"><h3>${title}</h3><div class="overlay-detail">${detail}</div><div class="overlay-actions">${buttons}</div></div>`;
   }
 
@@ -511,6 +512,8 @@ function initStarfighterSinistar() {
   }
 
   function saveScoreFromOverlay() {
+    if (overlayEl.dataset.scoreSaved === "true") return;
+    overlayEl.dataset.scoreSaved = "true";
     if (state.difficulty === 0) {
       showLeaderboard("Test Mode");
       return;

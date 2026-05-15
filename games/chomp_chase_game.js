@@ -478,7 +478,6 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
         const target = event.target;
         if (target.closest("[data-cc-overlay-start]")) this.start();
         if (target.closest("[data-cc-overlay-resume]")) this.resume();
-        if (target.closest("[data-cc-save-score]")) this.saveScoreFromOverlay();
         if (target.closest("[data-cc-show-leaderboard]")) this.showLeaderboard("Leaderboard", { recentScore: this.game.score });
       });
       this.overlayEl.addEventListener("submit", (event) => {
@@ -639,6 +638,8 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
     }
 
     saveScoreFromOverlay() {
+      if (this.overlayEl.dataset.scoreSaved === "true") return;
+      this.overlayEl.dataset.scoreSaved = "true";
       const score = this.game.score;
       if (!this.scoreQualifies(score)) {
         this.showLeaderboard("Leaderboard", { recentScore: score });
@@ -667,6 +668,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
     }
 
     showLeaderboard(title = "Leaderboard", options = {}) {
+      delete this.overlayEl.dataset.scoreSaved;
       if (this.game.status === "playing") this.game.status = "paused";
       this.overlayMode = "leaderboard";
       const entries = globalLeaderboard.getDisplayScores(this.loadLeaderboard());
@@ -1105,6 +1107,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
           if (this.overlayMode === "score" && this.lastScoreOverlayKey === scoreOverlayKey) return;
           this.overlayMode = "score";
           this.lastScoreOverlayKey = scoreOverlayKey;
+          delete this.overlayEl.dataset.scoreSaved;
           const qualifies = this.scoreQualifies(game.score);
           this.overlayCopyEl.innerHTML = `${escapeHtml(copy)}${qualifies ? this.renderScoreForm(game.score) : ""}`;
           this.overlayActionsEl.innerHTML = qualifies

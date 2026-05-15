@@ -255,6 +255,7 @@ function initAirplaneShooter() {
 
   function setOverlay(title, detail, buttons) {
     overlayEl.hidden = false;
+    delete overlayEl.dataset.scoreSaved;
     overlayEl.innerHTML = `
       <div class="overlay-card">
         <h3>${title}</h3>
@@ -461,6 +462,8 @@ function initAirplaneShooter() {
   }
 
   function saveScoreFromOverlay() {
+    if (overlayEl.dataset.scoreSaved === "true") return;
+    overlayEl.dataset.scoreSaved = "true";
     if (!scoreQualifies(state.score)) {
       showLeaderboard("Leaderboard", { recentEntry: {
         score: state.score,

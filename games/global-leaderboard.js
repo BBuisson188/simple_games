@@ -73,6 +73,10 @@ function scoreQualifiesForList(score, scores) {
   return cleanScore > 0 && (scores.length < LEADERBOARD_LIMIT || cleanScore > scores[scores.length - 1].score);
 }
 
+function scoreAlreadyPresent(score, scores) {
+  return scores.some((entry) => entry.name === score.name && entry.score === score.score);
+}
+
 function readJson(key) {
   try {
     const value = localStorage.getItem(key);
@@ -169,13 +173,20 @@ export function createGlobalLeaderboard({ gameId, pendingKey }) {
   }
 
   function queueScore(name, score) {
+    const pending = getPendingScores();
     const entry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       name: normalizeName(name),
       score: sanitizeScore(score),
       date: new Date().toISOString()
     };
-    savePendingScores([...getPendingScores(), entry]);
+    const recentDuplicate = pending.some((pendingEntry) => (
+      pendingEntry.name === entry.name &&
+      pendingEntry.score === entry.score &&
+      Math.abs(new Date(entry.date).getTime() - new Date(pendingEntry.date).getTime()) < 5000
+    ));
+    if (recentDuplicate) return pending.find((pendingEntry) => pendingEntry.name === entry.name && pendingEntry.score === entry.score) || entry;
+    savePendingScores([...pending, entry]);
     return entry;
   }
 
@@ -224,21 +235,25 @@ export function createGlobalLeaderboard({ gameId, pendingKey }) {
   async function syncPendingScores() {
     const pending = getPendingScores();
     if (!pending.length || syncing) return { synced: 0, skipped: 0 };
-    const scoresRef = await scoresCollection();
-    if (!scoresRef) throw new Error(firebaseState.error || "Firebase is not configured.");
-    if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      throw new Error("Offline; pending scores will sync later.");
-    }
-    const { addDoc, serverTimestamp } = await loadFirebaseSdk();
-
     syncing = true;
     try {
+      const scoresRef = await scoresCollection();
+      if (!scoresRef) throw new Error(firebaseState.error || "Firebase is not configured.");
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        throw new Error("Offline; pending scores will sync later.");
+      }
+      const { addDoc, serverTimestamp } = await loadFirebaseSdk();
       let globalScores = await getGlobalScores();
       const remaining = [];
       let synced = 0;
       let skipped = 0;
 
       for (const entry of pending.sort(compareScores)) {
+        if (scoreAlreadyPresent(entry, globalScores)) {
+          skipped += 1;
+          continue;
+        }
+
         if (!scoreQualifiesForList(entry.score, globalScores)) {
           skipped += 1;
           continue;
