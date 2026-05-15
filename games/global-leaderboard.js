@@ -141,6 +141,29 @@ export function createGlobalLeaderboard({ gameId, pendingKey }) {
     writeJson(cacheKey, scores.sort(compareScores).slice(0, LEADERBOARD_LIMIT));
   }
 
+  function mergeScores(...scoreLists) {
+    const seen = new Set();
+    return scoreLists
+      .flat()
+      .filter((entry) => entry && typeof entry.score === "number")
+      .map((entry) => ({
+        ...entry,
+        id: String(entry.id || `${entry.date || entry.createdAt || entry.savedAt || Date.now()}-${entry.score}`),
+        name: normalizeName(entry.name),
+        score: sanitizeScore(entry.score),
+        date: String(entry.date || entry.createdAt || entry.savedAt || "")
+      }))
+      .filter((entry) => entry.score > 0)
+      .sort(compareScores)
+      .filter((entry) => {
+        const key = `${entry.id}-${entry.name}-${entry.score}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, LEADERBOARD_LIMIT);
+  }
+
   function savePendingScores(scores) {
     writeJson(pendingKey, scores.sort(compareScores).slice(0, LEADERBOARD_LIMIT));
   }
@@ -158,17 +181,7 @@ export function createGlobalLeaderboard({ gameId, pendingKey }) {
 
   function getDisplayScores(fallbackScores = []) {
     const pending = getPendingScores().map((entry) => ({ ...entry, pending: true }));
-    const combined = [...getCachedScores(fallbackScores), ...pending];
-    const seen = new Set();
-    return combined
-      .sort(compareScores)
-      .filter((entry) => {
-        const key = entry.id || `${entry.name}-${entry.score}-${entry.date}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .slice(0, LEADERBOARD_LIMIT);
+    return mergeScores(getCachedScores(fallbackScores), pending);
   }
 
   async function getGlobalScores() {
@@ -204,7 +217,7 @@ export function createGlobalLeaderboard({ gameId, pendingKey }) {
       .filter((entry) => entry.score > 0)
       .sort(compareScores)
       .slice(0, LEADERBOARD_LIMIT);
-    saveCachedScores(scores);
+    if (scores.length || !getDisplayScores().length) saveCachedScores(scores);
     return scores;
   }
 
@@ -240,6 +253,7 @@ export function createGlobalLeaderboard({ gameId, pendingKey }) {
           });
           synced += 1;
           globalScores = [...globalScores, entry].sort(compareScores).slice(0, LEADERBOARD_LIMIT);
+          saveCachedScores(globalScores);
         } catch (error) {
           remaining.push(entry);
           console.warn("Pending global score sync failed; keeping it queued.", error);
@@ -256,7 +270,12 @@ export function createGlobalLeaderboard({ gameId, pendingKey }) {
   async function getBestScores(localScores = []) {
     try {
       await syncPendingScores();
-      return { source: "global", scores: await getGlobalScores(), error: "" };
+      const globalScores = await getGlobalScores();
+      const displayScores = getDisplayScores(localScores);
+      if (!globalScores.length && displayScores.length) {
+        return { source: "cache", scores: displayScores, error: "Global leaderboard returned no scores yet." };
+      }
+      return { source: "global", scores: mergeScores(globalScores, getPendingScores().map((entry) => ({ ...entry, pending: true }))), error: "" };
     } catch (error) {
       console.warn("Global leaderboard unavailable; using cached leaderboard.", error);
       return { source: "cache", scores: getDisplayScores(localScores), error: error?.message || String(error) };

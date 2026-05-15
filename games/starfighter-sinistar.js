@@ -579,7 +579,7 @@ function initStarfighterSinistar() {
         </tr>
       `
       : "";
-    const note = options.error ? `<p class="intro">Global sync unavailable; showing saved leaderboard data and pending scores.</p>` : "";
+    const note = options.error ? `<p class="intro">Global sync pending: ${escapeHtml(options.error)}</p>` : "";
     return `
       ${note}
       <table class="leaderboard-table"><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Date</th></tr></thead><tbody>${rows}${extraRow}</tbody></table>

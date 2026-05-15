@@ -674,7 +674,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       this.overlayEl.classList.add("cc-show");
       this.overlayTitleEl.textContent = title;
       const renderTable = (scores, renderOptions = {}) => {
-        const note = renderOptions.error ? `<p>Global sync unavailable; showing saved leaderboard data and pending scores.</p>` : "";
+        const note = renderOptions.error ? `<p>Global sync pending: ${escapeHtml(renderOptions.error)}</p>` : "";
         return `
           ${note}
           <table class="cc-leaderboard">

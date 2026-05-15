@@ -522,7 +522,7 @@ function initAirplaneShooter() {
         </tr>
       `
       : "";
-    const note = options.error ? `<p class="intro">Global sync unavailable; showing saved leaderboard data and pending scores.</p>` : "";
+    const note = options.error ? `<p class="intro">Global sync pending: ${escapeHtml(options.error)}</p>` : "";
     return `
       ${note}
       <table class="leaderboard-table">
