@@ -28,12 +28,17 @@ A tiny offline-capable mini-games web app for iPhone, iPad, and GitHub Pages.
 |   +-- chomp_chase_game.js
 |   +-- global-leaderboard.js
 +-- assets/
-    +-- icons/
-        +-- app-icon.svg
-    +-- menu/
-        +-- airplane-shooter.jpg
-        +-- mad-libs.jpg
-        +-- starfighter.jpg
+|   +-- icons/
+|   |   +-- app-icon.svg
+|   |   +-- app-icon-180.png
+|   |   +-- app-icon-192.png
+|   |   +-- app-icon-512.png
+|   |   +-- biplane-front.svg
+|   +-- menu/
+|       +-- airplane-shooter.jpg
+|       +-- chomp-chase.jpg
+|       +-- mad-libs.jpg
+|       +-- starfighter.jpg
 ```
 
 ## Setup

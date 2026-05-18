@@ -84,6 +84,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
     style.id = "chomp-chase-styles";
     style.textContent = `
       .cc-game, .cc-game * { box-sizing: border-box; }
+      body.cc-chomp-scroll-lock { overflow: hidden; overscroll-behavior: none; }
       .cc-game {
         --cc-bg: #03040c;
         --cc-panel: rgba(2, 6, 23, 0.86);
@@ -136,6 +137,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       .cc-button:active { transform: scale(.97); }
       .cc-button-primary { background: #fde047; border-color: #fde047; color: #020617; box-shadow: 0 10px 30px rgba(250, 204, 21, .18); }
       .cc-button-primary:hover { background: #fef08a; }
+      .cc-immersive-hud { display: none; }
       .cc-layout { display: grid; grid-template-columns: minmax(0, 1fr) 288px; gap: 14px; align-items: start; }
       .cc-board-wrap { position: relative; border: 1px solid var(--cc-border); border-radius: 28px; background: rgba(0,0,0,.72); padding: 12px; box-shadow: 0 24px 80px rgba(8, 47, 73, .35); }
       .cc-canvas-holder { width: 100%; display: flex; justify-content: center; }
@@ -159,32 +161,108 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       .cc-side-section { border: 1px solid rgba(255,255,255,.1); background: rgba(0,0,0,.28); border-radius: 22px; padding: 14px; }
       .cc-side-section + .cc-side-section { margin-top: 14px; }
       .cc-section-label { color: rgba(165, 243, 252, .72); font-size: 11px; font-weight: 950; letter-spacing: .2em; text-transform: uppercase; }
-      .cc-dpad { margin: 14px auto 0; width: 192px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-      .cc-dpad-spacer { min-height: 54px; }
-      .cc-dpad-button {
-        border: 1px solid rgba(125, 211, 252, .22);
-        background: rgba(15, 23, 42, .92);
-        color: #cffafe;
-        min-height: 54px;
-        border-radius: 18px;
-        font: inherit;
-        font-size: 21px;
-        font-weight: 950;
-        cursor: pointer;
-        box-shadow: 0 12px 28px rgba(8, 47, 73, .28);
-        transition: transform .08s ease, background .16s ease;
-        touch-action: manipulation;
+      .cc-joystick-panel {
+        display: none;
+        border: 1px solid rgba(125, 211, 252, .18);
+        border-radius: 24px;
+        background: rgba(2, 6, 23, .72);
+        padding: 12px;
+        place-items: center;
+        min-width: 134px;
+        min-height: 164px;
+        touch-action: none;
         user-select: none;
       }
-      .cc-dpad-button:active { transform: scale(.95); background: rgba(34, 211, 238, .22); }
+      .cc-game.cc-joystick-on .cc-joystick-panel { display: grid; }
+      .cc-game:not(.cc-immersive).cc-joystick-on .cc-layout { grid-template-columns: minmax(0, 1fr) 288px; grid-template-rows: auto auto; }
+      .cc-game:not(.cc-immersive).cc-joystick-on .cc-board-wrap { grid-row: 1 / span 2; }
+      .cc-game:not(.cc-immersive).cc-joystick-on .cc-joystick-panel { grid-column: 2; grid-row: 1; margin-bottom: 14px; }
+      .cc-game:not(.cc-immersive).cc-joystick-on .cc-side { grid-column: 2; grid-row: 2; }
+      .cc-joystick {
+        position: relative;
+        width: 118px;
+        height: 118px;
+        border-radius: 999px;
+        border: 1px solid rgba(125, 211, 252, .22);
+        background: radial-gradient(circle at 50% 50%, rgba(34, 211, 238, .2), rgba(15, 23, 42, .96) 66%);
+        box-shadow: inset 0 0 26px rgba(8, 145, 178, .28), 0 16px 34px rgba(0, 0, 0, .28);
+        cursor: pointer;
+      }
+      .cc-joystick::before, .cc-joystick::after {
+        content: "";
+        position: absolute;
+        background: rgba(207, 250, 254, .12);
+      }
+      .cc-joystick::before { left: 50%; top: 15px; bottom: 15px; width: 1px; }
+      .cc-joystick::after { top: 50%; left: 15px; right: 15px; height: 1px; }
+      .cc-joystick-knob {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 46px;
+        height: 46px;
+        border-radius: 999px;
+        background: #fde047;
+        box-shadow: 0 10px 22px rgba(250, 204, 21, .26);
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+      .cc-joystick-copy { margin: 10px 0 0; color: #94a3b8; font-size: 11px; line-height: 1.35; text-align: center; }
       .cc-side-copy, .cc-rules { color: #cbd5e1; font-size: 13px; line-height: 1.5; }
       .cc-rules { margin: 12px 0 0; padding-left: 0; list-style: none; }
       .cc-rules li + li { margin-top: 7px; }
       .cc-power-bar { margin-top: 12px; height: 12px; overflow: hidden; border-radius: 999px; background: #1e293b; }
       .cc-power-fill { height: 100%; width: 0%; border-radius: inherit; background: linear-gradient(90deg, #67e8f9, #2563eb); transition: width .1s linear; }
+      .cc-game.cc-immersive {
+        position: fixed;
+        z-index: 10000;
+        inset: 0;
+        width: 100vw;
+        height: 100dvh;
+        min-height: 100dvh;
+        padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+        overflow: hidden;
+        touch-action: none;
+      }
+      .cc-game.cc-immersive .cc-shell { width: 100%; height: 100%; grid-template-rows: auto minmax(0, 1fr); gap: 8px; }
+      .cc-game.cc-immersive .cc-top { display: none; }
+      .cc-game.cc-immersive .cc-immersive-hud {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        min-width: 0;
+        border: 1px solid rgba(125, 211, 252, .18);
+        border-radius: 18px;
+        background: rgba(2, 6, 23, .88);
+        padding: 8px;
+      }
+      .cc-hud-stats { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: auto; scrollbar-width: none; }
+      .cc-hud-stats::-webkit-scrollbar { display: none; }
+      .cc-hud-pill { flex: 0 0 auto; color: #fff; font-size: 13px; font-weight: 950; white-space: nowrap; }
+      .cc-hud-pill span { color: rgba(165, 243, 252, .68); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+      .cc-hud-actions { display: flex; flex: 0 0 auto; gap: 6px; }
+      .cc-game.cc-immersive .cc-button { padding: 9px 11px; border-radius: 14px; font-size: 12px; }
+      .cc-game.cc-immersive .cc-layout { height: 100%; min-height: 0; grid-template-columns: minmax(0, 1fr) minmax(132px, 18vw); gap: 8px; align-items: stretch; }
+      .cc-game.cc-immersive .cc-board-wrap { min-height: 0; border-radius: 18px; padding: 6px; box-shadow: none; }
+      .cc-game.cc-immersive .cc-canvas-holder { height: 100%; align-items: center; }
+      .cc-game.cc-immersive .cc-canvas { border-radius: 14px; }
+      .cc-game.cc-immersive .cc-side { display: none; }
+      .cc-game.cc-immersive:not(.cc-joystick-on) .cc-layout { grid-template-columns: minmax(0, 1fr); }
+      .cc-game.cc-immersive .cc-joystick-panel { align-self: stretch; justify-self: stretch; }
+      .cc-game.cc-immersive .cc-overlay { inset: 6px; border-radius: 16px; }
+      @media (orientation: landscape) {
+        .cc-game.cc-immersive .cc-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+        .cc-game.cc-immersive .cc-joystick-panel { min-height: 136px; }
+        .cc-game.cc-immersive .cc-joystick { width: 104px; height: 104px; }
+      }
       @media (max-width: 900px) {
         .cc-layout { grid-template-columns: 1fr; }
         .cc-side { order: 2; }
+        .cc-game:not(.cc-immersive).cc-joystick-on .cc-layout { grid-template-columns: 1fr; grid-template-rows: auto; }
+        .cc-game:not(.cc-immersive).cc-joystick-on .cc-board-wrap,
+        .cc-game:not(.cc-immersive).cc-joystick-on .cc-joystick-panel,
+        .cc-game:not(.cc-immersive).cc-joystick-on .cc-side { grid-column: auto; grid-row: auto; }
       }
       @media (max-width: 640px) {
         .cc-game { padding: 10px; }
@@ -341,12 +419,16 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       this.frameId = 0;
       this.lastUiTime = 0;
       this.touchStart = null;
+      this.immersive = false;
+      this.joystickEnabled = false;
+      this.joystickPointerId = null;
       this.overlayMode = null;
       this.lastScoreOverlayKey = "";
       this.destroyed = false;
       this.resizeObserver = null;
       this.boundKeyDown = this.handleKeyDown.bind(this);
       this.boundResize = this.resize.bind(this);
+      this.boundFullscreenChange = this.handleFullscreenChange.bind(this);
       this.renderShell();
       this.attachEvents();
       this.resize();
@@ -382,8 +464,24 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
                   <button type="button" class="cc-button cc-button-primary" data-cc-start>New Game</button>
                   <button type="button" class="cc-button" data-cc-pause>Pause</button>
                   <button type="button" class="cc-button" data-cc-leaderboard>Leaderboard</button>
+                  <button type="button" class="cc-button" data-cc-immersive>Full Screen</button>
+                  <button type="button" class="cc-button" data-cc-joystick-toggle>Joystick</button>
                   <button type="button" class="cc-button" data-cc-exit style="display:none">Back to Games</button>
                 </div>
+              </div>
+            </section>
+
+            <section class="cc-immersive-hud" aria-label="Chomp Chase focused controls">
+              <div class="cc-hud-stats" aria-live="polite">
+                <div class="cc-hud-pill"><span>Score</span> <strong data-cc-hud-score>0</strong></div>
+                <div class="cc-hud-pill"><span>High</span> <strong data-cc-hud-high>0</strong></div>
+                <div class="cc-hud-pill"><span>Level</span> <strong data-cc-hud-level>1/5</strong></div>
+                <div class="cc-hud-pill"><span>Lives</span> <strong data-cc-hud-lives>OOO</strong></div>
+              </div>
+              <div class="cc-hud-actions">
+                <button type="button" class="cc-button" data-cc-pause-immersive>Pause</button>
+                <button type="button" class="cc-button" data-cc-joystick-toggle>Joystick</button>
+                <button type="button" class="cc-button cc-button-primary" data-cc-immersive-exit>Exit</button>
               </div>
             </section>
 
@@ -406,21 +504,18 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
                 </div>
               </div>
 
+              <div class="cc-joystick-panel" data-cc-joystick-panel>
+                <div class="cc-joystick" data-cc-joystick aria-label="Joystick control" role="application">
+                  <div class="cc-joystick-knob" data-cc-joystick-knob></div>
+                </div>
+                <p class="cc-joystick-copy">Drag and hold to steer.</p>
+              </div>
+
               <aside class="cc-side">
                 <div class="cc-side-section">
                   <div class="cc-section-label">Touch Controls</div>
-                  <div class="cc-dpad">
-                    <div class="cc-dpad-spacer"></div>
-                    <button type="button" class="cc-dpad-button" aria-label="Move up" data-cc-dir="up">Up</button>
-                    <div class="cc-dpad-spacer"></div>
-                    <button type="button" class="cc-dpad-button" aria-label="Move left" data-cc-dir="left">Left</button>
-                    <button type="button" class="cc-dpad-button" aria-label="Pause" data-cc-dpad-pause>Pause</button>
-                    <button type="button" class="cc-dpad-button" aria-label="Move right" data-cc-dir="right">Right</button>
-                    <div class="cc-dpad-spacer"></div>
-                    <button type="button" class="cc-dpad-button" aria-label="Move down" data-cc-dir="down">Down</button>
-                    <div class="cc-dpad-spacer"></div>
-                  </div>
-                  <p class="cc-side-copy">The full canvas also supports swipe gestures, so this plays cleanly on iPad without a keyboard.</p>
+                  <p class="cc-side-copy">Swipe the game board to steer. Use Full Screen to lock the page in place while playing on iPhone or iPad.</p>
+                  <button type="button" class="cc-button" data-cc-joystick-toggle>Joystick</button>
                 </div>
                 <div class="cc-side-section">
                   <div class="cc-section-label">Rules</div>
@@ -453,6 +548,10 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       this.dotsEl = this.container.querySelector("[data-cc-dots]");
       this.levelTitleEl = this.container.querySelector("[data-cc-level-title]");
       this.levelDetailEl = this.container.querySelector("[data-cc-level-detail]");
+      this.hudScoreEl = this.container.querySelector("[data-cc-hud-score]");
+      this.hudHighEl = this.container.querySelector("[data-cc-hud-high]");
+      this.hudLevelEl = this.container.querySelector("[data-cc-hud-level]");
+      this.hudLivesEl = this.container.querySelector("[data-cc-hud-lives]");
       this.overlayEl = this.container.querySelector("[data-cc-overlay]");
       this.overlayTitleEl = this.container.querySelector("[data-cc-overlay-title]");
       this.overlayCopyEl = this.container.querySelector("[data-cc-overlay-copy]");
@@ -460,6 +559,12 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       this.overlayResumeBtn = this.container.querySelector("[data-cc-overlay-resume]");
       this.powerFillEl = this.container.querySelector("[data-cc-power-fill]");
       this.exitBtn = this.container.querySelector("[data-cc-exit]");
+      this.immersiveBtn = this.container.querySelector("[data-cc-immersive]");
+      this.immersiveExitBtn = this.container.querySelector("[data-cc-immersive-exit]");
+      this.immersivePauseBtn = this.container.querySelector("[data-cc-pause-immersive]");
+      this.joystickPanel = this.container.querySelector("[data-cc-joystick-panel]");
+      this.joystickEl = this.container.querySelector("[data-cc-joystick]");
+      this.joystickKnobEl = this.container.querySelector("[data-cc-joystick-knob]");
       this.titleEl.textContent = this.options.title;
       if (this.options.showExitButton) this.exitBtn.style.display = "inline-block";
     }
@@ -469,11 +574,16 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       this.pauseBtn = this.container.querySelector("[data-cc-pause]");
       this.leaderboardBtn = this.container.querySelector("[data-cc-leaderboard]");
       this.overlayStartBtn = this.container.querySelector("[data-cc-overlay-start]");
-      this.dpadPauseBtn = this.container.querySelector("[data-cc-dpad-pause]");
 
       this.startBtn.addEventListener("click", () => this.start());
       this.pauseBtn.addEventListener("click", () => this.togglePause());
       this.leaderboardBtn.addEventListener("click", () => this.showLeaderboard());
+      this.immersiveBtn.addEventListener("click", () => this.enterImmersive());
+      this.immersiveExitBtn.addEventListener("click", () => this.exitImmersive());
+      this.immersivePauseBtn.addEventListener("click", () => this.togglePause());
+      this.container.querySelectorAll("[data-cc-joystick-toggle]").forEach((button) => {
+        button.addEventListener("click", () => this.toggleJoystick());
+      });
       this.overlayEl.addEventListener("click", (event) => {
         const target = event.target;
         if (target.closest("[data-cc-overlay-start]")) this.start();
@@ -485,19 +595,8 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
         event.preventDefault();
         this.saveScoreFromOverlay();
       });
-      this.dpadPauseBtn.addEventListener("pointerdown", (event) => {
-        event.preventDefault();
-        this.togglePause();
-      });
       this.exitBtn.addEventListener("click", () => {
         if (typeof this.options.onExit === "function") this.options.onExit(this);
-      });
-
-      this.container.querySelectorAll("[data-cc-dir]").forEach((button) => {
-        button.addEventListener("pointerdown", (event) => {
-          event.preventDefault();
-          this.setDirection(button.getAttribute("data-cc-dir"));
-        });
       });
 
       this.canvas.addEventListener("pointerdown", (event) => {
@@ -516,12 +615,104 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
         this.setDirection(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
       });
 
+      this.joystickEl.addEventListener("pointerdown", (event) => this.handleJoystickPointer(event));
+      this.joystickEl.addEventListener("pointermove", (event) => this.handleJoystickPointer(event));
+      this.joystickEl.addEventListener("pointerup", (event) => this.releaseJoystick(event));
+      this.joystickEl.addEventListener("pointercancel", (event) => this.releaseJoystick(event));
+      document.addEventListener("fullscreenchange", this.boundFullscreenChange);
       window.addEventListener("keydown", this.boundKeyDown, { passive: false });
       window.addEventListener("resize", this.boundResize);
       if (window.ResizeObserver) {
         this.resizeObserver = new ResizeObserver(() => this.resize());
         this.resizeObserver.observe(this.container);
       }
+    }
+
+    async enterImmersive() {
+      if (this.immersive) return;
+      this.immersive = true;
+      this.root.classList.add("cc-immersive");
+      document.body.classList.add("cc-chomp-scroll-lock");
+      this.immersiveBtn.textContent = "Full Screen";
+      try {
+        if (this.root.requestFullscreen && document.fullscreenElement !== this.root) {
+          await this.root.requestFullscreen();
+        }
+      } catch (error) {
+        console.info("Native fullscreen unavailable; using Chomp Chase focus mode.", error);
+      }
+      window.setTimeout(() => {
+        this.resize();
+        this.canvas.focus({ preventScroll: true });
+      }, 0);
+    }
+
+    async exitImmersive() {
+      if (!this.immersive && document.fullscreenElement !== this.root) return;
+      this.immersive = false;
+      this.root.classList.remove("cc-immersive");
+      document.body.classList.remove("cc-chomp-scroll-lock");
+      this.resetJoystickKnob();
+      try {
+        if (document.fullscreenElement === this.root && document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+      } catch (error) {
+        console.info("Unable to exit native fullscreen cleanly.", error);
+      }
+      window.setTimeout(() => this.resize(), 0);
+    }
+
+    handleFullscreenChange() {
+      if (this.destroyed || document.fullscreenElement === this.root) return;
+      if (this.immersive) {
+        this.immersive = false;
+        this.root.classList.remove("cc-immersive");
+        document.body.classList.remove("cc-chomp-scroll-lock");
+        window.setTimeout(() => this.resize(), 0);
+      }
+    }
+
+    toggleJoystick() {
+      this.joystickEnabled = !this.joystickEnabled;
+      this.root.classList.toggle("cc-joystick-on", this.joystickEnabled);
+      if (!this.joystickEnabled) this.resetJoystickKnob();
+      window.setTimeout(() => this.resize(), 0);
+    }
+
+    resetJoystickKnob() {
+      this.joystickPointerId = null;
+      if (this.joystickKnobEl) this.joystickKnobEl.style.transform = "translate(-50%, -50%)";
+    }
+
+    handleJoystickPointer(event) {
+      if (!this.joystickEnabled) return;
+      event.preventDefault();
+      if (event.type === "pointerdown") {
+        this.joystickPointerId = event.pointerId;
+        this.joystickEl.setPointerCapture?.(event.pointerId);
+      }
+      if (this.joystickPointerId !== event.pointerId) return;
+      const rect = this.joystickEl.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const dx = event.clientX - centerX;
+      const dy = event.clientY - centerY;
+      const max = rect.width * 0.32;
+      const distance = Math.hypot(dx, dy);
+      const scale = distance > max ? max / distance : 1;
+      const knobX = dx * scale;
+      const knobY = dy * scale;
+      this.joystickKnobEl.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+      if (distance < rect.width * 0.12) return;
+      this.setDirection(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
+    }
+
+    releaseJoystick(event) {
+      if (this.joystickPointerId !== event.pointerId) return;
+      event.preventDefault();
+      this.joystickEl.releasePointerCapture?.(event.pointerId);
+      this.resetJoystickKnob();
     }
 
     handleKeyDown(event) {
@@ -1067,7 +1258,10 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       const dpr = window.devicePixelRatio || 1;
       const holder = this.canvas.parentElement;
       const availableW = Math.max(300, holder.clientWidth || this.container.clientWidth || 700);
-      const maxByHeight = Math.max(330, window.innerHeight * 0.68) * (COLS / ROWS);
+      const availableH = this.immersive
+        ? Math.max(280, holder.clientHeight || window.innerHeight - 70)
+        : Math.max(330, window.innerHeight * 0.68);
+      const maxByHeight = availableH * (COLS / ROWS);
       const cssW = Math.max(300, Math.min(availableW, maxByHeight));
       const cssH = cssW * (ROWS / COLS);
       this.canvas.style.width = `${cssW}px`;
@@ -1086,6 +1280,10 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       this.levelEl.textContent = `${game.levelIndex + 1}/5`;
       this.livesEl.textContent = "O".repeat(Math.max(0, game.lives)) || "0";
       this.dotsEl.textContent = String(game.pellets.size);
+      this.hudScoreEl.textContent = game.score.toLocaleString();
+      this.hudHighEl.textContent = game.highScore.toLocaleString();
+      this.hudLevelEl.textContent = `${game.levelIndex + 1}/5`;
+      this.hudLivesEl.textContent = "O".repeat(Math.max(0, game.lives)) || "0";
       this.levelTitleEl.textContent = `${level.name}: ${level.subtitle}`;
       this.levelDetailEl.textContent = `Enemies: ${level.enemies} - Enemy speed: ${level.enemySpeed.toFixed(2)} - Power time: ${level.powerTime.toFixed(1)}s`;
       this.powerFillEl.style.width = `${clamp((game.powerTimer / level.powerTime) * 100, 0, 100)}%`;
@@ -1365,8 +1563,16 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       if (this.destroyed) return;
       this.destroyed = true;
       if (this.frameId) window.cancelAnimationFrame(this.frameId);
+      if (this.immersive) {
+        this.immersive = false;
+        document.body.classList.remove("cc-chomp-scroll-lock");
+      }
+      if (document.fullscreenElement === this.root && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
       window.removeEventListener("keydown", this.boundKeyDown);
       window.removeEventListener("resize", this.boundResize);
+      document.removeEventListener("fullscreenchange", this.boundFullscreenChange);
       if (this.resizeObserver) this.resizeObserver.disconnect();
       this.container.innerHTML = "";
     }

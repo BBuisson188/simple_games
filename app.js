@@ -3,7 +3,7 @@ import { renderAirplaneShooter } from "./games/airplane-shooter.js";
 import { renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
 import { renderChompChase } from "./games/chomp_chase_game.js";
 
-const APP_VERSION = "v61";
+const APP_VERSION = "v63";
 const ACTIVE_GAME_KEY = "miniGames.activeGame";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
@@ -53,7 +53,7 @@ function renderMenu() {
   }
   const buttons = games.map((game) => `
     <button class="menu-button" type="button" data-game="${game.id}">
-      ${game.graphic ? `<img class="menu-graphic" src="${game.graphic}" alt="" aria-hidden="true">` : `<span class="menu-graphic menu-graphic-placeholder" aria-hidden="true">?</span>`}
+      <img class="menu-graphic" src="${game.graphic}" alt="" aria-hidden="true">
       <span>
         <strong>${game.title}</strong>
         <span>${game.subtitle}</span>

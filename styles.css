@@ -172,15 +172,7 @@ h3 {
   background: #eef6f3;
 }
 
-.menu-graphic-placeholder {
-  display: grid;
-  place-items: center;
-  color: rgba(25, 49, 47, 0.38);
-  font-size: 2rem;
-  font-weight: 900;
-}
-
-.menu-button > span:not(.menu-graphic-placeholder) {
+.menu-button > span {
   display: block;
   min-width: 0;
   padding: 14px 46px 16px 16px;
@@ -479,18 +471,6 @@ select {
   margin-bottom: 0;
   color: var(--muted);
   line-height: 1.45;
-}
-
-.placeholder-art {
-  display: grid;
-  place-items: center;
-  min-height: 160px;
-  margin: 18px 0;
-  border-radius: 8px;
-  background: #e7f1ee;
-  color: var(--brand-dark);
-  font-size: clamp(3rem, 16vw, 6rem);
-  font-weight: 900;
 }
 
 .game-panel {

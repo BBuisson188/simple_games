@@ -4,12 +4,12 @@ Read this file before making major project changes.
 
 ## Current Implementation Status
 
-- App and service worker cache version are currently `v61`.
+- App and service worker cache version are currently `v63`.
 - Mad Libs has custom game-specific styling, saved local history, and redo flow.
 - Starfighter Arena uses Vulture Droid enemies in the Trade Federation level and TIE fighters in later levels.
 - Starfighter final score and leaderboard entries use `totalKills` across the full run.
 - Airplane Shooter, Starfighter Arena, and Chomp Chase show one leaderboard backed by Firestore, with localStorage only used as cache/pending fallback.
-- The future game menu slot is still a placeholder.
+- The menu currently contains four games: Mad Libs, Airplane Shooter, Starfighter Arena, and Chomp Chase.
 
 ## Current Architecture
 
@@ -42,14 +42,12 @@ Read this file before making major project changes.
 ## Unresolved Issues
 
 - No automated test suite exists; validation is manual in a local browser.
-- The future game menu slot needs a real game or should be removed.
 - Offline updates require manually keeping `APP_VERSION` and `CACHE_NAME` in sync.
 
 ## Next Recommended Steps
 
 - Run through the menu, Mad Libs form/history/redo flow, and Starfighter level one on desktop and phone-sized viewports.
-- Confirm GitHub Pages serves `v47` after deployment and that the service worker refreshes cached assets.
-- Decide what should replace the remaining future game placeholder.
+- Confirm GitHub Pages serves the current app version after deployment and that the service worker refreshes cached assets.
 
 ## Codex Workflow Notes
 
