@@ -243,16 +243,17 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       .cc-hud-pill span { color: rgba(165, 243, 252, .68); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
       .cc-hud-actions { display: flex; flex: 0 0 auto; gap: 6px; }
       .cc-game.cc-immersive .cc-button { padding: 9px 11px; border-radius: 14px; font-size: 12px; }
-      .cc-game.cc-immersive .cc-layout { height: 100%; min-height: 0; grid-template-columns: minmax(0, 1fr) minmax(132px, 18vw); gap: 8px; align-items: stretch; }
+      .cc-game.cc-immersive .cc-layout { height: 100%; min-height: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 8px; align-items: stretch; }
       .cc-game.cc-immersive .cc-board-wrap { min-height: 0; border-radius: 18px; padding: 6px; box-shadow: none; }
       .cc-game.cc-immersive .cc-canvas-holder { height: 100%; align-items: center; }
       .cc-game.cc-immersive .cc-canvas { border-radius: 14px; }
       .cc-game.cc-immersive .cc-side { display: none; }
-      .cc-game.cc-immersive:not(.cc-joystick-on) .cc-layout { grid-template-columns: minmax(0, 1fr); }
+      .cc-game.cc-immersive:not(.cc-joystick-on) .cc-layout { grid-template-rows: minmax(0, 1fr); }
       .cc-game.cc-immersive .cc-joystick-panel { align-self: stretch; justify-self: stretch; }
       .cc-game.cc-immersive .cc-overlay { inset: 6px; border-radius: 16px; }
       @media (orientation: landscape) {
-        .cc-game.cc-immersive .cc-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+        .cc-game.cc-immersive .cc-layout { grid-template-columns: minmax(0, 1fr) minmax(132px, 18vw); grid-template-rows: minmax(0, 1fr); }
+        .cc-game.cc-immersive:not(.cc-joystick-on) .cc-layout { grid-template-columns: minmax(0, 1fr); }
         .cc-game.cc-immersive .cc-joystick-panel { min-height: 136px; }
         .cc-game.cc-immersive .cc-joystick { width: 104px; height: 104px; }
       }
