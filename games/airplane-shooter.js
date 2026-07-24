@@ -1,4 +1,5 @@
 import { createGlobalLeaderboard } from "./global-leaderboard.js";
+import { createImmersiveGameplay } from "./immersive-gameplay.js";
 
 const planes = {
   biplane: {
@@ -116,18 +117,13 @@ export function renderAirplaneShooter() {
         <button class="secondary-button" type="button" data-menu>Back to Menu</button>
         <button class="secondary-button" type="button" data-show-leaderboard>Leaderboard</button>
       </div>
-      <div class="air-game" data-selected-plane="mustang" data-layout="portrait">
+      <div class="air-game" data-selected-plane="mustang" data-layout="landscape">
         <div class="game-overlay" hidden data-game-overlay></div>
         <div class="game-header">
           <div>
             <h2>Airplane Shooter</h2>
             <p class="intro">Throttle up, lift off, bank left or right, and shoot down incoming planes.</p>
           </div>
-        </div>
-
-        <div class="layout-toggle" aria-label="Layout">
-          <button class="secondary-button is-selected" type="button" data-layout-choice="portrait">Portrait</button>
-          <button class="secondary-button" type="button" data-layout-choice="landscape">Landscape</button>
         </div>
 
         <div class="plane-select" data-plane-select>
@@ -141,12 +137,13 @@ export function renderAirplaneShooter() {
               ${renderStageOptions()}
             </select>
           </label>
-          <button class="primary-button" type="button" data-start-flight>Start Level</button>
+          <button class="primary-button" type="button" data-start-flight>Start Full-Screen Level</button>
         </div>
 
         <div class="flight-deck" hidden data-flight-deck>
           <div class="canvas-wrap">
-            <canvas class="flight-canvas" width="520" height="620" aria-label="Airplane Shooter game area"></canvas>
+            <canvas class="flight-canvas" width="920" height="518" aria-label="Airplane Shooter game area"></canvas>
+            <button class="gameplay-exit-button" type="button" data-air-exit-game>Exit Game</button>
             <div class="game-stats surface-stats" aria-live="polite">
               <span>Stage <strong data-stage>1</strong></span>
               <span>Score <strong data-score>0</strong></span>
@@ -191,7 +188,6 @@ function initAirplaneShooter() {
   if (currentGame) currentGame.stop();
 
   const planeButtons = [...root.querySelectorAll("[data-plane-choice]")];
-  const layoutButtons = [...root.querySelectorAll("[data-layout-choice]")];
   const selectScreen = root.querySelector("[data-plane-select]");
   const stageSelect = root.querySelector("[data-stage-select]");
   const flightDeck = root.querySelector("[data-flight-deck]");
@@ -204,6 +200,7 @@ function initAirplaneShooter() {
   const messageEl = root.querySelector("[data-game-message]");
   const overlayEl = root.querySelector("[data-game-overlay]");
   const throttleLights = [...root.querySelectorAll("[data-throttle-light]")];
+  const immersive = createImmersiveGameplay(root, { orientation: "landscape" });
 
   const input = { left: false, right: false };
   const state = {
@@ -284,16 +281,6 @@ function initAirplaneShooter() {
     });
   }
 
-  function setLayout(layout) {
-    root.dataset.layout = layout;
-    canvas.width = layout === "landscape" ? 920 : 520;
-    canvas.height = layout === "landscape" ? 518 : 620;
-    layoutButtons.forEach((button) => {
-      button.classList.toggle("is-selected", button.dataset.layoutChoice === layout);
-    });
-    draw();
-  }
-
   function updateHud() {
     scoreEl.textContent = state.score;
     stageEl.textContent = String(state.selectedStage + 1);
@@ -329,6 +316,7 @@ function initAirplaneShooter() {
   }
 
   function startGame() {
+    immersive.enter();
     state.selectedStage = Number(stageSelect.value || "0");
     state.score = 0;
     state.enemyScore = 0;
@@ -370,6 +358,7 @@ function initAirplaneShooter() {
   }
 
   function restartFromSelect() {
+    immersive.exit();
     state.mode = "select";
     state.finishGate = null;
     selectScreen.hidden = false;
@@ -2241,13 +2230,12 @@ function initAirplaneShooter() {
 
   function runButtonCommand(target) {
     const planeButton = target.closest("[data-plane-choice]");
-    const layoutButton = target.closest("[data-layout-choice]");
     if (planeButton) {
       choosePlane(planeButton.dataset.planeChoice);
       return true;
     }
-    if (layoutButton) {
-      setLayout(layoutButton.dataset.layoutChoice);
+    if (target.closest("[data-air-exit-game]")) {
+      restartFromSelect();
       return true;
     }
     if (target.closest("[data-start-flight]")) {
@@ -2342,17 +2330,24 @@ function initAirplaneShooter() {
     if (holdButton) holdEnd(holdButton.dataset.hold);
   });
 
+  function preventGameplayTouchMove(event) {
+    if (immersive.isActive()) event.preventDefault();
+  }
+
+  panel.addEventListener("touchmove", preventGameplayTouchMove, { passive: false });
+
   currentGame = {
     stop() {
       state.mode = "select";
       input.left = false;
       input.right = false;
       state.bankVelocity = 0;
+      panel.removeEventListener("touchmove", preventGameplayTouchMove);
+      immersive.destroy();
     }
   };
 
   drawPlanePreviews(root);
-  setLayout("portrait");
   draw();
   updateHud();
 }

@@ -3,7 +3,7 @@ import { renderAirplaneShooter } from "./games/airplane-shooter.js";
 import { renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
 import { renderChompChase } from "./games/chomp_chase_game.js";
 
-const APP_VERSION = "v65";
+const APP_VERSION = "v66";
 const ACTIVE_GAME_KEY = "miniGames.activeGame";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
@@ -40,6 +40,9 @@ const games = [
 ];
 
 function setScreen(html) {
+  document.body.classList.remove("gameplay-scroll-lock", "cc-chomp-scroll-lock");
+  document.body.style.removeProperty("--gameplay-scroll-offset");
+  document.body.style.removeProperty("--cc-scroll-offset");
   app.innerHTML = html;
   app.focus();
 }

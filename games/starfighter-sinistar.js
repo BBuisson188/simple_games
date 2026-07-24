@@ -1,4 +1,5 @@
 import { createGlobalLeaderboard } from "./global-leaderboard.js";
+import { createImmersiveGameplay } from "./immersive-gameplay.js";
 
 const ships = {
   falcon: { name: "Millennium Falcon", note: "Heavy freighter, wider double lasers, slower fire.", radius: 18, acceleration: 520, drag: 0.978, maxSpeed: 255, laserCount: 2, laserSpread: 9, fireCooldown: 0.24 },
@@ -86,11 +87,12 @@ export function renderStarfighterSinistar() {
           </div>
           <h3>Choose your ship</h3>
           <div class="starship-choice-grid">${renderShipButtons()}</div>
-          <button class="primary-button" type="button" data-start-stars>Launch</button>
+          <button class="primary-button" type="button" data-start-stars>Launch Full Screen</button>
         </div>
         <div class="star-deck" hidden data-star-deck>
           <div class="star-canvas-wrap">
             <canvas class="star-canvas" width="${WORLD.width}" height="${WORLD.height}" aria-label="Starfighter Arena game area"></canvas>
+            <button class="gameplay-exit-button" type="button" data-star-exit-game>Exit Game</button>
             <div class="game-stats surface-stats star-stats" aria-live="polite">
               <span>Level <strong data-star-level>1</strong></span>
               <span>Score <strong data-star-score>0</strong></span>
@@ -133,6 +135,7 @@ function initStarfighterSinistar() {
   const knob = root.querySelector("[data-star-knob]");
   const shipButtons = [...root.querySelectorAll("[data-starship-choice]")];
   const difficultyButtons = [...root.querySelectorAll("[data-star-difficulty]")];
+  const immersive = createImmersiveGameplay(root, { orientation: "landscape" });
   const input = { x: 0, y: 0, active: false, pointerId: null, fire: false, firePointerId: null, keys: new Set() };
   const state = {
     running: false, mode: "select", selectedShip: lastSelectedShip, difficulty: lastSelectedDifficulty, level: 0, score: 0, hits: 0, kills: 0, totalKills: 0,
@@ -241,6 +244,7 @@ function initStarfighterSinistar() {
   }
 
   function startGame() {
+    immersive.enter();
     unlockAudio();
     state.running = true;
     state.level = 0;
@@ -266,6 +270,7 @@ function initStarfighterSinistar() {
   }
 
   function restartToSelect() {
+    immersive.exit();
     state.mode = "select";
     state.running = false;
     state.pausedMode = null;
@@ -1374,6 +1379,10 @@ function initStarfighterSinistar() {
       chooseShip(shipButton.dataset.starshipChoice);
       return true;
     }
+    if (target.closest("[data-star-exit-game]")) {
+      restartToSelect();
+      return true;
+    }
     if (target.closest("[data-start-stars]")) {
       startGame();
       return true;
@@ -1474,7 +1483,7 @@ function initStarfighterSinistar() {
   }
 
   function preventMultiTouchMove(event) {
-    if (event.touches.length > 1 || event.target.closest(".star-canvas-wrap")) {
+    if (immersive.isActive() || event.touches.length > 1 || event.target.closest(".star-canvas-wrap")) {
       event.preventDefault();
     }
   }
@@ -1562,6 +1571,7 @@ function initStarfighterSinistar() {
       panel.removeEventListener("gesturestart", preventGameplayGesture);
       panel.removeEventListener("gesturechange", preventGameplayGesture);
       panel.removeEventListener("gestureend", preventGameplayGesture);
+      immersive.destroy();
     }
   };
 

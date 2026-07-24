@@ -84,7 +84,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
     style.id = "chomp-chase-styles";
     style.textContent = `
       .cc-game, .cc-game * { box-sizing: border-box; }
-      body.cc-chomp-scroll-lock { overflow: hidden; overscroll-behavior: none; }
+      body.cc-chomp-scroll-lock { position: fixed; left: 0; right: 0; top: var(--cc-scroll-offset, 0); width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; touch-action: none; }
       .cc-game {
         --cc-bg: #03040c;
         --cc-panel: rgba(2, 6, 23, 0.86);
@@ -218,7 +218,9 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
         z-index: 10000;
         inset: 0;
         width: 100vw;
+        height: 100vh;
         height: 100dvh;
+        min-height: 100vh;
         min-height: 100dvh;
         padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
         overflow: hidden;
@@ -421,6 +423,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       this.lastUiTime = 0;
       this.touchStart = null;
       this.immersive = false;
+      this.scrollY = 0;
       this.joystickEnabled = false;
       this.joystickPointerId = null;
       this.overlayMode = null;
@@ -515,7 +518,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
               <aside class="cc-side">
                 <div class="cc-side-section">
                   <div class="cc-section-label">Touch Controls</div>
-                  <p class="cc-side-copy">Swipe the game board to steer. Use Full Screen to lock the page in place while playing on iPhone or iPad.</p>
+                  <p class="cc-side-copy">Swipe the game board to steer. Starting a game automatically locks the page in place on iPhone or iPad.</p>
                   <button type="button" class="cc-button" data-cc-joystick-toggle>Joystick</button>
                 </div>
                 <div class="cc-side-section">
@@ -601,11 +604,13 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       });
 
       this.canvas.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
         const rect = this.canvas.getBoundingClientRect();
         this.touchStart = { x: event.clientX - rect.left, y: event.clientY - rect.top };
         this.canvas.setPointerCapture?.(event.pointerId);
       });
       this.canvas.addEventListener("pointerup", (event) => {
+        event.preventDefault();
         if (!this.touchStart) return;
         const rect = this.canvas.getBoundingClientRect();
         const end = { x: event.clientX - rect.left, y: event.clientY - rect.top };
@@ -629,11 +634,23 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       }
     }
 
+    lockPage() {
+      this.scrollY = window.scrollY || 0;
+      document.body.style.setProperty("--cc-scroll-offset", `${-this.scrollY}px`);
+      document.body.classList.add("cc-chomp-scroll-lock");
+    }
+
+    unlockPage() {
+      document.body.classList.remove("cc-chomp-scroll-lock");
+      document.body.style.removeProperty("--cc-scroll-offset");
+      window.scrollTo({ top: this.scrollY, left: 0, behavior: "auto" });
+    }
+
     async enterImmersive() {
       if (this.immersive) return;
       this.immersive = true;
       this.root.classList.add("cc-immersive");
-      document.body.classList.add("cc-chomp-scroll-lock");
+      this.lockPage();
       this.immersiveBtn.textContent = "Full Screen";
       try {
         if (this.root.requestFullscreen && document.fullscreenElement !== this.root) {
@@ -652,7 +669,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       if (!this.immersive && document.fullscreenElement !== this.root) return;
       this.immersive = false;
       this.root.classList.remove("cc-immersive");
-      document.body.classList.remove("cc-chomp-scroll-lock");
+      this.unlockPage();
       this.resetJoystickKnob();
       try {
         if (document.fullscreenElement === this.root && document.exitFullscreen) {
@@ -669,7 +686,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       if (this.immersive) {
         this.immersive = false;
         this.root.classList.remove("cc-immersive");
-        document.body.classList.remove("cc-chomp-scroll-lock");
+        this.unlockPage();
         window.setTimeout(() => this.resize(), 0);
       }
     }
@@ -977,6 +994,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
     }
 
     start() {
+      this.enterImmersive();
       this.overlayMode = null;
       this.lastScoreOverlayKey = "";
       this.audio.prime();
@@ -1566,7 +1584,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       if (this.frameId) window.cancelAnimationFrame(this.frameId);
       if (this.immersive) {
         this.immersive = false;
-        document.body.classList.remove("cc-chomp-scroll-lock");
+        this.unlockPage();
       }
       if (document.fullscreenElement === this.root && document.exitFullscreen) {
         document.exitFullscreen().catch(() => {});

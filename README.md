@@ -5,6 +5,8 @@ A tiny offline-capable mini-games web app for iPhone, iPad, and GitHub Pages.
 ## Features
 
 - Touch-friendly main menu with local menu artwork.
+- iPad-focused immersive gameplay that locks page scrolling while Chomp Chase, Airplane Shooter, or Starfighter Arena is active.
+- Airplane Shooter uses a single landscape gameplay layout and enters full-screen play automatically.
 - Mad Libs with multiple stories, saved local history, redo flow, and playful custom styling.
 - Airplane Shooter with plane choices, arcade controls, scoring, stages, and crash/level-complete flows.
 - Starfighter Arena with ship choices, difficulty modes, enemy waves, bosses, scoring, leaderboard, and canvas-drawn ships.
@@ -27,6 +29,7 @@ A tiny offline-capable mini-games web app for iPhone, iPad, and GitHub Pages.
 |   +-- starfighter-sinistar.js
 |   +-- chomp_chase_game.js
 |   +-- global-leaderboard.js
+|   +-- immersive-gameplay.js
 +-- assets/
 |   +-- icons/
 |   |   +-- app-icon.svg

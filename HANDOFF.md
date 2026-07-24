@@ -4,7 +4,7 @@ Read this file before making major project changes.
 
 ## Current Implementation Status
 
-- App and service worker cache version are currently `v65`.
+- App and service worker cache version are currently `v66`.
 - Mad Libs has custom game-specific styling, saved local history, and redo flow.
 - Starfighter Arena uses Vulture Droid enemies in the Trade Federation level and TIE fighters in later levels.
 - Starfighter final score and leaderboard entries use `totalKills` across the full run.
@@ -47,6 +47,8 @@ Read this file before making major project changes.
 ## Resolved Issues
 
 - Removed the forced service-worker update and `controllerchange` page reload that could trap the installed app in a flashing refresh loop and return an opened game to the menu.
+- Chomp Chase now enters its existing immersive mode automatically when play starts. Starfighter Arena and Airplane Shooter share an iPad-focused, scroll-locked full-screen play mode with an in-game exit control.
+- Airplane Shooter now uses one landscape gameplay layout instead of separate portrait and landscape choices.
 
 ## Next Recommended Steps
 

@@ -37,6 +37,18 @@ body {
   -webkit-touch-callout: none;
 }
 
+body.gameplay-scroll-lock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--gameplay-scroll-offset, 0);
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
 button,
 input,
 select {
@@ -475,6 +487,93 @@ select {
 
 .game-panel {
   padding: clamp(10px, 2.4vw, 18px);
+}
+
+.air-game.is-gameplay-immersive,
+.star-game.is-gameplay-immersive {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding:
+    max(6px, env(safe-area-inset-top))
+    max(6px, env(safe-area-inset-right))
+    max(6px, env(safe-area-inset-bottom))
+    max(6px, env(safe-area-inset-left));
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+.air-game.is-gameplay-immersive {
+  background: #163b46;
+}
+
+.star-game.is-gameplay-immersive {
+  background: #050810;
+}
+
+.is-gameplay-immersive > .game-header,
+.is-gameplay-immersive > .plane-select,
+.is-gameplay-immersive > .star-select {
+  display: none !important;
+}
+
+.is-gameplay-immersive > .flight-deck,
+.is-gameplay-immersive > .star-deck {
+  display: block !important;
+  width: 100%;
+  height: 100%;
+}
+
+.is-gameplay-immersive .canvas-wrap,
+.is-gameplay-immersive .star-canvas-wrap {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #050810;
+}
+
+.is-gameplay-immersive .flight-canvas,
+.is-gameplay-immersive .star-canvas {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  aspect-ratio: auto;
+  object-fit: contain;
+  box-shadow: none;
+}
+
+.is-gameplay-immersive .surface-stats {
+  right: max(124px, calc(env(safe-area-inset-right) + 112px));
+}
+
+.gameplay-exit-button {
+  position: absolute;
+  z-index: 30;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  display: none;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  background: rgba(7, 18, 25, 0.82);
+  color: #ffffff;
+  font-weight: 900;
+  touch-action: manipulation;
+  backdrop-filter: blur(5px);
+}
+
+.is-gameplay-immersive .gameplay-exit-button {
+  display: block;
 }
 
 .game-header {
