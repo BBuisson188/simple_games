@@ -4,7 +4,7 @@ Read this file before making major project changes.
 
 ## Current Implementation Status
 
-- App and service worker cache version are currently `v64`.
+- App and service worker cache version are currently `v65`.
 - Mad Libs has custom game-specific styling, saved local history, and redo flow.
 - Starfighter Arena uses Vulture Droid enemies in the Trade Federation level and TIE fighters in later levels.
 - Starfighter final score and leaderboard entries use `totalKills` across the full run.
@@ -43,6 +43,10 @@ Read this file before making major project changes.
 
 - No automated test suite exists; validation is manual in a local browser.
 - Offline updates require manually keeping `APP_VERSION` and `CACHE_NAME` in sync.
+
+## Resolved Issues
+
+- Removed the forced service-worker update and `controllerchange` page reload that could trap the installed app in a flashing refresh loop and return an opened game to the menu.
 
 ## Next Recommended Steps
 

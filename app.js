@@ -3,7 +3,7 @@ import { renderAirplaneShooter } from "./games/airplane-shooter.js";
 import { renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
 import { renderChompChase } from "./games/chomp_chase_game.js";
 
-const APP_VERSION = "v64";
+const APP_VERSION = "v65";
 const ACTIVE_GAME_KEY = "miniGames.activeGame";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
@@ -90,8 +90,6 @@ function updateOfflineStatus() {
   offlineStatus.textContent = `${navigator.onLine ? "Online" : "Offline"} ${APP_VERSION}`;
 }
 
-let refreshingForNewServiceWorker = false;
-
 app.addEventListener("click", (event) => {
   const gameButton = event.target.closest(".menu-button[data-game]");
   const menuButton = event.target.closest("[data-menu]");
@@ -118,13 +116,9 @@ app.addEventListener("pointerdown", (event) => {
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./service-worker.js")
-      .then((registration) => registration.update());
-  });
-
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (refreshingForNewServiceWorker) return;
-    refreshingForNewServiceWorker = true;
-    window.location.reload();
+      .catch((error) => {
+        console.warn("Offline support could not be started.", error);
+      });
   });
 }
 
