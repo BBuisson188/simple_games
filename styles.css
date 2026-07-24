@@ -725,6 +725,19 @@ select {
   aspect-ratio: 16 / 9;
 }
 
+.air-game.is-gameplay-immersive[data-layout="landscape"] .canvas-wrap {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+}
+
+.air-game.is-gameplay-immersive[data-layout="landscape"] .flight-canvas {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  object-fit: fill;
+}
+
 .air-game[data-layout="landscape"] .left-pad {
   width: min(32%, 210px);
 }

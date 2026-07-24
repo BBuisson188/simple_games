@@ -315,6 +315,16 @@ function initAirplaneShooter() {
     input.right = false;
   }
 
+  function resizeImmersiveCanvas() {
+    if (!immersive.isActive() || flightDeck.hidden) return;
+    const width = Math.max(640, Math.round(flightDeck.clientWidth));
+    const height = Math.max(360, Math.round(flightDeck.clientHeight));
+    if (canvas.width === width && canvas.height === height) return;
+    canvas.width = width;
+    canvas.height = height;
+    draw();
+  }
+
   function startGame() {
     immersive.enter();
     state.selectedStage = Number(stageSelect.value || "0");
@@ -327,6 +337,8 @@ function initAirplaneShooter() {
     resetStage();
     selectScreen.hidden = true;
     flightDeck.hidden = false;
+    window.requestAnimationFrame(resizeImmersiveCanvas);
+    window.setTimeout(resizeImmersiveCanvas, 250);
     hideOverlay();
     updateHud();
     setMessage("Parked on runway", "Tap Faster until the plane lifts off.");
@@ -2335,6 +2347,7 @@ function initAirplaneShooter() {
   }
 
   panel.addEventListener("touchmove", preventGameplayTouchMove, { passive: false });
+  window.addEventListener("resize", resizeImmersiveCanvas);
 
   currentGame = {
     stop() {
@@ -2343,6 +2356,7 @@ function initAirplaneShooter() {
       input.right = false;
       state.bankVelocity = 0;
       panel.removeEventListener("touchmove", preventGameplayTouchMove);
+      window.removeEventListener("resize", resizeImmersiveCanvas);
       immersive.destroy();
     }
   };
