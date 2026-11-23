@@ -1,4 +1,4 @@
-const CACHE_NAME = "mini-games-v67";
+const CACHE_NAME = "mini-games-v72";
 
 const APP_ASSETS = [
   "./",
@@ -7,11 +7,16 @@ const APP_ASSETS = [
   "./app.js",
   "./manifest.json",
   "./reset.html",
+  "./games/airplane-aircraft.js",
+  "./games/airplane-scenery.js",
   "./games/airplane-shooter.js",
   "./games/chomp_chase_game.js",
   "./games/global-leaderboard.js",
   "./games/immersive-gameplay.js",
   "./games/mad-libs.js",
+  "./games/pine-ridge-course.js",
+  "./games/pine-ridge-run.js",
+  "./games/pine-ridge-view.js",
   "./games/starfighter-sinistar.js",
   "./assets/icons/app-icon-180.png",
   "./assets/icons/app-icon-192.png",
@@ -21,7 +26,8 @@ const APP_ASSETS = [
   "./assets/menu/mad-libs.jpg",
   "./assets/menu/airplane-shooter.jpg",
   "./assets/menu/chomp-chase.jpg",
-  "./assets/menu/starfighter.jpg"
+  "./assets/menu/starfighter.jpg",
+  "./assets/menu/pine-ridge-run.jpg"
 ];
 
 self.addEventListener("install", (event) => {

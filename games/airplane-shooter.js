@@ -1,36 +1,29 @@
 import { createGlobalLeaderboard } from "./global-leaderboard.js";
 import { createImmersiveGameplay } from "./immersive-gameplay.js";
+import { createAirplaneScenery } from "./airplane-scenery.js";
+import { createAircraftPainter } from "./airplane-aircraft.js";
 
 const planes = {
   biplane: {
     name: "Bi-plane",
-    color: "#c9482c",
-    accent: "#f6c453",
     turn: 0.9,
     topSpeed: 0.78,
     bankResponse: 8.5,
-    note: "Steady and easy.",
-    prop: true
+    note: "Stable turns · slower cruise"
   },
   mustang: {
     name: "Mustang",
-    color: "#2d6fab",
-    accent: "#e9edf0",
     turn: 1.06,
     topSpeed: 1,
     bankResponse: 6.8,
-    note: "Balanced fighter.",
-    prop: true
+    note: "Balanced speed and handling"
   },
   jet: {
     name: "70s Jet",
-    color: "#586371",
-    accent: "#ff7a45",
     turn: 1.34,
     topSpeed: 1.55,
     bankResponse: 3.4,
-    note: "Fast and twitchy.",
-    prop: false
+    note: "Fastest cruise · wide turns"
   }
 };
 
@@ -84,16 +77,18 @@ const stages = [
 const LIVES_BONUS = 1000;
 const RUNWAY_LIMIT = 24;
 const DISTANCE_RATE = 4.2;
+const HOSTILE_SHOT_SPEED = 1.7;
+const AIRBORNE_MODES = ["takeoff", "flying", "finishing", "crashing"];
+const FLIGHT_KEYS = { ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right", Space: "fire" };
 const LEADERBOARD_KEY = "miniGames.airplaneShooterLeaderboard";
 const PENDING_GLOBAL_SCORES_KEY = "miniGames.airplaneShooterPendingGlobalScores";
 const GAME_ID = "airplane-shooter";
 const globalLeaderboard = createGlobalLeaderboard({ gameId: GAME_ID, pendingKey: PENDING_GLOBAL_SCORES_KEY });
-let currentGame = null;
 
 function renderPlaneButtons() {
   return Object.entries(planes).map(([id, plane]) => `
-    <button class="plane-choice ${id === "mustang" ? "is-selected" : ""}" type="button" data-plane-choice="${id}">
-      <canvas class="plane-preview" width="110" height="78" data-plane-preview="${id}" aria-hidden="true"></canvas>
+    <button class="plane-choice ${id === "mustang" ? "is-selected" : ""}" type="button" data-plane-choice="${id}" aria-pressed="${id === "mustang"}">
+      <canvas class="plane-preview" width="220" height="156" data-plane-preview="${id}" aria-hidden="true"></canvas>
       <strong>${plane.name}</strong>
       <span>${plane.note}</span>
     </button>
@@ -107,22 +102,18 @@ function renderStageOptions() {
 }
 
 export function renderAirplaneShooter() {
-  if (typeof document !== "undefined") {
-    setTimeout(() => initAirplaneShooter(), 0);
-  }
-
   return `
-    <section class="panel game-panel">
-      <div class="toolbar">
-        <button class="secondary-button" type="button" data-menu>Back to Menu</button>
-        <button class="secondary-button" type="button" data-show-leaderboard>Leaderboard</button>
-      </div>
+    <section class="panel game-panel air-panel">
       <div class="air-game" data-selected-plane="mustang" data-layout="landscape">
         <div class="game-overlay" hidden data-game-overlay></div>
-        <div class="game-header">
+        <div class="game-header air-hangar">
+          <div class="air-hangar-nav">
+            <button class="secondary-button" type="button" data-menu>← All games</button>
+            <button class="secondary-button" type="button" data-show-leaderboard>Leaderboard</button>
+          </div>
           <div>
             <h2>Airplane Shooter</h2>
-            <p class="intro">Throttle up, lift off, bank left or right, and shoot down incoming planes.</p>
+            <p class="intro">Four stages, from the grass runway to the mountain pass.</p>
           </div>
         </div>
 
@@ -137,18 +128,28 @@ export function renderAirplaneShooter() {
               ${renderStageOptions()}
             </select>
           </label>
-          <button class="primary-button" type="button" data-start-flight>Start Full-Screen Level</button>
+          <button class="primary-button" type="button" data-start-flight>Start Flight</button>
+          <p class="air-controls-note">Bank with ← →, change throttle with ↑ ↓, and hold Space to fire. Release to cool down.</p>
         </div>
 
         <div class="flight-deck" hidden data-flight-deck>
           <div class="canvas-wrap">
-            <canvas class="flight-canvas" width="920" height="518" aria-label="Airplane Shooter game area"></canvas>
-            <button class="gameplay-exit-button" type="button" data-air-exit-game>Exit Game</button>
-            <div class="game-stats surface-stats" aria-live="polite">
-              <span>Stage <strong data-stage>1</strong></span>
-              <span>Score <strong data-score>0</strong></span>
-              <span>Lives <strong data-lives>3</strong></span>
-              <span>Distance <strong data-distance>0%</strong></span>
+            <canvas class="flight-canvas" width="920" height="518" tabindex="-1" aria-label="Airplane Shooter game area"></canvas>
+            <div class="air-hud">
+              <div class="air-hud-stats">
+                <span><small>Score</small><strong data-score>0</strong></span>
+                <span><small>Speed</small><strong data-air-speed>0 km/h</strong></span>
+                <span><small>Lives</small><strong data-lives>3</strong></span>
+              </div>
+              <div class="air-hud-actions">
+                <button class="air-flight-button" type="button" data-air-pause aria-label="Pause flight">Ⅱ</button>
+                <button class="air-flight-button" type="button" data-air-exit-game>Exit Game</button>
+              </div>
+              <div class="air-route">
+                <span data-stage>Grass Runway</span>
+                <progress data-air-progress max="100" value="0" aria-label="Stage progress"></progress>
+                <strong data-distance>0%</strong>
+              </div>
             </div>
 
             <div class="flight-controls" aria-label="Game controls">
@@ -166,7 +167,13 @@ export function renderAirplaneShooter() {
                   <span data-throttle-light="1"></span>
                 </div>
                 <button class="control-button small-control" type="button" data-throttle-down>Slower</button>
-                <button class="control-button fire-control" type="button" data-fire>Fire</button>
+                <div class="air-fire">
+                  <button class="control-button fire-control" type="button" data-fire>Hold Fire</button>
+                  <div class="air-heat">
+                    <span data-air-heat-label>Heat</span>
+                    <progress data-air-heat max="1" value="0" aria-label="Fire heat"></progress>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -181,13 +188,10 @@ export function renderAirplaneShooter() {
   `;
 }
 
-function initAirplaneShooter() {
-  const root = document.querySelector(".air-game");
-  if (!root) return;
-  const panel = root.closest(".game-panel");
-  if (currentGame) currentGame.stop();
-
+export function mountAirplaneShooter(panel) {
+  const root = panel.querySelector(".air-game");
   const planeButtons = [...root.querySelectorAll("[data-plane-choice]")];
+  const hangar = root.querySelector(".air-hangar");
   const selectScreen = root.querySelector("[data-plane-select]");
   const stageSelect = root.querySelector("[data-stage-select]");
   const flightDeck = root.querySelector("[data-flight-deck]");
@@ -197,12 +201,26 @@ function initAirplaneShooter() {
   const stageEl = root.querySelector("[data-stage]");
   const livesEl = root.querySelector("[data-lives]");
   const distanceEl = root.querySelector("[data-distance]");
+  const speedEl = root.querySelector("[data-air-speed]");
+  const progressEl = root.querySelector("[data-air-progress]");
+  const heatEl = root.querySelector("[data-air-heat]");
+  const heatLabel = root.querySelector("[data-air-heat-label]");
+  const fireButton = root.querySelector("[data-fire]");
+  const pauseButton = root.querySelector("[data-air-pause]");
   const messageEl = root.querySelector("[data-game-message]");
   const overlayEl = root.querySelector("[data-game-overlay]");
   const throttleLights = [...root.querySelectorAll("[data-throttle-light]")];
   const immersive = createImmersiveGameplay(root, { orientation: "landscape" });
+  const drawScenery = createAirplaneScenery();
+  const paintAircraft = createAircraftPainter();
+  const listeners = new AbortController();
+  let viewWidth = canvas.width;
+  let viewHeight = canvas.height;
+  let pixelRatio = 1;
+  let frame;
+  let disposed = false;
 
-  const input = { left: false, right: false };
+  const input = { keys: new Set(), pointers: new Map() };
   const state = {
     mode: "select",
     selectedPlane: "mustang",
@@ -221,6 +239,9 @@ function initAirplaneShooter() {
     lives: 3,
     lastTime: 0,
     bulletTimer: 0,
+    fireFlash: 0,
+    heat: 0,
+    overheated: false,
     propSpin: 0,
     crashTime: 0,
     crashX: 0,
@@ -236,9 +257,43 @@ function initAirplaneShooter() {
     nextEnemyIndex: 0,
     pausedMode: null,
     bullets: [],
+    hostile: [],
     enemies: [],
     bursts: []
   };
+
+  function text(element, value) {
+    if (element.textContent !== value) element.textContent = value;
+  }
+
+  function held(action) {
+    for (const value of input.pointers.values()) if (value === action) return true;
+    for (const key of input.keys) if (FLIGHT_KEYS[key] === action) return true;
+    return false;
+  }
+
+  function clearInputs() {
+    input.keys.clear();
+    input.pointers.clear();
+  }
+
+  function startLoop() {
+    if (frame !== undefined) return;
+    state.lastTime = 0;
+    frame = requestAnimationFrame(loop);
+  }
+
+  function stopLoop() {
+    cancelAnimationFrame(frame);
+    frame = undefined;
+    clearInputs();
+  }
+
+  function enterFlight() {
+    void immersive.enter().then(() => {
+      if (disposed || state.mode === "select") void immersive.exit();
+    });
+  }
 
   function stage() {
     return stages[state.selectedStage] || stages[0];
@@ -268,24 +323,47 @@ function initAirplaneShooter() {
     if (state.mode === "paused" && state.pausedMode) {
       state.mode = state.pausedMode;
       state.pausedMode = null;
-      state.lastTime = 0;
-      requestAnimationFrame(loop);
+      enterFlight();
+      canvas.focus({ preventScroll: true });
+      updateHud();
+      startLoop();
     }
+  }
+
+  function pause() {
+    if (!AIRBORNE_MODES.includes(state.mode)) return;
+    state.pausedMode = state.mode;
+    state.mode = "paused";
+    stopLoop();
+    updateHud();
+    setOverlay("Flight paused", "<p>Resume from here when you’re ready.</p>",
+      '<button class="primary-button" type="button" data-close-overlay>Resume Flight</button><button class="secondary-button" type="button" data-air-exit-game>Exit Game</button>');
+    overlayEl.querySelector("[data-close-overlay]").focus({ preventScroll: true });
   }
 
   function choosePlane(planeId) {
     state.selectedPlane = planeId;
     root.dataset.selectedPlane = planeId;
     planeButtons.forEach((button) => {
-      button.classList.toggle("is-selected", button.dataset.planeChoice === planeId);
+      const selected = button.dataset.planeChoice === planeId;
+      button.classList.toggle("is-selected", selected);
+      button.setAttribute("aria-pressed", selected);
     });
   }
 
   function updateHud() {
-    scoreEl.textContent = state.score;
-    stageEl.textContent = String(state.selectedStage + 1);
-    livesEl.textContent = String(state.lives);
-    distanceEl.textContent = `${Math.min(100, Math.floor(state.distance))}%`;
+    const distance = Math.min(100, Math.floor(state.distance));
+    text(scoreEl, state.score.toLocaleString());
+    text(stageEl, stage().name);
+    text(livesEl, String(state.lives));
+    text(distanceEl, `${distance}%`);
+    text(speedEl, `${Math.round(state.speed * 260)} km/h`);
+    progressEl.value = distance;
+    heatEl.value = state.heat;
+    text(heatLabel, state.overheated ? "Cooling" : "Heat");
+    fireButton.classList.toggle("is-hot", state.overheated);
+    fireButton.classList.toggle("is-firing", state.fireFlash > 0);
+    pauseButton.disabled = !AIRBORNE_MODES.includes(state.mode);
     throttleLights.forEach((light) => {
       light.classList.toggle("is-on", state.throttle >= Number(light.dataset.throttleLight));
     });
@@ -303,22 +381,28 @@ function initAirplaneShooter() {
     state.lastTime = 0;
     state.bulletTimer = 0;
     state.crashTime = 0;
-    state.stageTime = 0;
+    if (!keepRunway) state.stageTime = 0;
     state.stallTimer = 0;
     state.stallWobble = 0;
     state.stallWarningShown = false;
     state.finishGate = null;
     state.bullets = [];
+    state.hostile = [];
     state.enemies = [];
     state.bursts = [];
-    input.left = false;
-    input.right = false;
+    state.fireFlash = 0;
+    state.heat = 0;
+    state.overheated = false;
+    clearInputs();
   }
 
   function resizeImmersiveCanvas() {
-    if (!immersive.isActive() || flightDeck.hidden) return;
-    const width = Math.max(640, Math.round(flightDeck.clientWidth));
-    const height = Math.max(360, Math.round(flightDeck.clientHeight));
+    if (flightDeck.hidden || !canvas.clientWidth || !canvas.clientHeight) return;
+    viewWidth = canvas.clientWidth;
+    viewHeight = canvas.clientHeight;
+    pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    const width = Math.round(viewWidth * pixelRatio);
+    const height = Math.round(viewHeight * pixelRatio);
     if (canvas.width === width && canvas.height === height) return;
     canvas.width = width;
     canvas.height = height;
@@ -326,7 +410,7 @@ function initAirplaneShooter() {
   }
 
   function startGame() {
-    immersive.enter();
+    stopLoop();
     state.selectedStage = Number(stageSelect.value || "0");
     state.score = 0;
     state.enemyScore = 0;
@@ -335,14 +419,17 @@ function initAirplaneShooter() {
     state.distance = 0;
     prepareEnemySchedule();
     resetStage();
+    hangar.hidden = true;
     selectScreen.hidden = true;
     flightDeck.hidden = false;
-    window.requestAnimationFrame(resizeImmersiveCanvas);
-    window.setTimeout(resizeImmersiveCanvas, 250);
+    overlayEl.classList.add("is-flight-overlay");
+    enterFlight();
     hideOverlay();
+    canvas.focus({ preventScroll: true });
+    resizeImmersiveCanvas();
     updateHud();
     setMessage("Parked on runway", "Tap Faster until the plane lifts off.");
-    requestAnimationFrame(loop);
+    startLoop();
   }
 
   function startNextStage() {
@@ -353,7 +440,8 @@ function initAirplaneShooter() {
     hideOverlay();
     updateHud();
     setMessage(`Stage ${state.selectedStage + 1}`, `${stage().name}. Throttle up for takeoff.`);
-    requestAnimationFrame(loop);
+    canvas.focus({ preventScroll: true });
+    startLoop();
   }
 
   function continueAfterCrash() {
@@ -366,17 +454,23 @@ function initAirplaneShooter() {
     hideOverlay();
     updateHud();
     setMessage("Back in the sky", "Keep flying. Watch for incoming planes.");
-    requestAnimationFrame(loop);
+    canvas.focus({ preventScroll: true });
+    startLoop();
   }
 
   function restartFromSelect() {
-    immersive.exit();
+    stopLoop();
+    void immersive.exit();
     state.mode = "select";
+    state.pausedMode = null;
     state.finishGate = null;
     selectScreen.hidden = false;
+    hangar.hidden = false;
     flightDeck.hidden = true;
+    overlayEl.classList.remove("is-flight-overlay");
     hideOverlay();
     updateHud();
+    root.querySelector("[data-start-flight]").focus({ preventScroll: true });
   }
 
   function completeStage() {
@@ -385,6 +479,7 @@ function initAirplaneShooter() {
     state.finishGate = { depth: 0.98 };
     state.enemies = [];
     state.bullets = [];
+    state.hostile = [];
   }
 
   function showStageComplete() {
@@ -537,11 +632,10 @@ function initAirplaneShooter() {
   }
 
   function showLeaderboard(title = "Leaderboard", options = {}) {
-    if (["takeoff", "flying", "finishing", "crashing"].includes(state.mode)) {
+    if (AIRBORNE_MODES.includes(state.mode)) {
       state.pausedMode = state.mode;
       state.mode = "paused";
-      input.left = false;
-      input.right = false;
+      stopLoop();
       state.bankVelocity = 0;
     }
 
@@ -594,17 +688,15 @@ function initAirplaneShooter() {
   }
 
   function buildEnemySchedule(currentStage) {
-    const lanes = [-0.72, -0.45, -0.18, 0, 0.18, 0.45, 0.72];
-    const start = 10;
-    const end = 92;
-    const gap = (end - start) / currentStage.enemyCount;
+    const lanes = [0, -0.56, 0.55, -0.62, 0.24, 0.7, -0.30, 0.44];
+    const gap = 78 / currentStage.enemyCount;
 
     return Array.from({ length: currentStage.enemyCount }, (_, index) => {
-      const lane = lanes[(index * 3 + state.selectedStage) % lanes.length];
+      const pattern = index < 2 ? "straight" : index % 5 === 4 ? "dive" : index % 4 === 0 ? "straight" : "sweep";
       return {
-        at: start + gap * index + gap * 0.45,
-        lane,
-        used: false
+        at: 7.5 + gap * (index - (index % 4 === 3 ? 0.57 : 0)),
+        lane: lanes[(index + state.selectedStage * 2) % lanes.length],
+        pattern
       };
     });
   }
@@ -624,10 +716,10 @@ function initAirplaneShooter() {
     state.crashY = wasTakeoff ? state.planeY : 0.83;
     state.crashSpin = 0;
     state.bullets = [];
+    state.hostile = [];
     state.enemies = [];
     state.bursts.push({ x: state.playerX, depth: 0.08, age: 0 });
-    input.left = false;
-    input.right = false;
+    clearInputs();
     state.bankVelocity = 0;
     setMessage(reason, "Hold tight...");
     updateHud();
@@ -652,18 +744,29 @@ function initAirplaneShooter() {
   }
 
   function fire() {
-    if (state.mode !== "flying" || state.bulletTimer > 0) return;
-    state.bullets.push({ x: state.playerX, depth: 0.18 });
-    state.bulletTimer = 0.22;
+    if (state.mode !== "flying" || state.bulletTimer > 0 || state.overheated) return;
+    state.bullets.push({ x: state.playerX, depth: 0.095 });
+    state.bulletTimer = 0.14;
+    state.fireFlash = 0.075;
+    state.heat = Math.min(1, state.heat + 0.14);
+    if (state.heat >= 1) {
+      state.overheated = true;
+      setMessage("Fire overheated", "Release the trigger to cool faster.");
+    }
   }
 
   function spawnEnemy(scheduleItem) {
-    const jitter = (Math.random() * 0.18) - 0.09;
+    const { lane, pattern } = scheduleItem;
     state.enemies.push({
-      x: Math.max(-0.82, Math.min(0.82, scheduleItem.lane + jitter)),
+      x: lane,
+      lane,
+      age: 0,
       depth: 0.98,
-      drift: Math.random() > 0.5 ? 0.06 : -0.06,
-      wobble: Math.random() * Math.PI * 2
+      sweep: pattern === "straight" ? 0.035 : pattern === "sweep" ? 0.24 + state.selectedStage * 0.025 : 0.12,
+      direction: lane > 0 ? -1 : 1,
+      dive: pattern === "dive",
+      armed: pattern === "dive" && state.selectedStage > 0,
+      fired: false
     });
   }
 
@@ -678,11 +781,13 @@ function initAirplaneShooter() {
     if (state.speed > 0.45 && state.runway > 12) {
       state.takeoffBlend = Math.min(1, state.takeoffBlend + dt * (0.62 + state.speed * 0.35));
       state.planeY = 0.78 + state.takeoffBlend * 0.05;
-      setMessage("Lifting off", "The runway is dropping away. Get ready to bank.");
+      if (state.takeoffBlend < 0.07) setMessage("Lifting off", "Get ready to bank.");
     }
     if (state.takeoffBlend >= 1) {
       state.mode = "flying";
-      setMessage("Wheels up", "Bank left or right and fire at enemy planes.");
+      setMessage("Wheels up", state.selectedStage > 0
+        ? "Bank away from the red shots. Fire in short bursts."
+        : "Line up the reticle and hold Fire in short bursts.");
     }
   }
 
@@ -691,7 +796,7 @@ function initAirplaneShooter() {
     const targetSpeed = (state.throttle / 4) * plane.topSpeed;
     state.speed += (targetSpeed - state.speed) * Math.min(1, dt * 1.8);
     state.stageTime += dt;
-    const targetBank = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    const targetBank = Number(held("right")) - Number(held("left"));
     const reversing = targetBank !== 0 && Math.sign(targetBank) !== Math.sign(state.bankVelocity) && Math.abs(state.bankVelocity) > 0.08;
     const response = reversing ? plane.bankResponse * 0.48 : plane.bankResponse;
     state.bankVelocity += (targetBank - state.bankVelocity) * Math.min(1, dt * response);
@@ -699,6 +804,7 @@ function initAirplaneShooter() {
     state.playerX = Math.max(-1, Math.min(1, state.playerX));
     state.distance += state.speed * dt * DISTANCE_RATE;
     updateStall(dt);
+    if (state.mode !== "flying") return;
 
     spawnScheduledEnemies();
 
@@ -709,7 +815,6 @@ function initAirplaneShooter() {
     while (state.nextEnemyIndex < state.enemySchedule.length) {
       const scheduleItem = state.enemySchedule[state.nextEnemyIndex];
       if (state.distance < scheduleItem.at) break;
-      scheduleItem.used = true;
       spawnEnemy(scheduleItem);
       state.nextEnemyIndex += 1;
     }
@@ -743,49 +848,59 @@ function initAirplaneShooter() {
   function updateObjects(dt) {
     const currentStage = stage();
     state.bulletTimer = Math.max(0, state.bulletTimer - dt);
+    state.fireFlash = Math.max(0, state.fireFlash - dt);
+    const firing = held("fire");
+    state.heat = Math.max(0, state.heat - dt * (firing && !state.overheated ? 0.12 : firing ? 0.46 : 0.72));
+    if (state.overheated && state.heat < 0.35) state.overheated = false;
+    if (firing) fire();
     state.propSpin += dt * (10 + state.speed * 30);
 
-    state.bullets.forEach((bullet) => {
-      bullet.depth += dt * 1.45;
-    });
-    state.bullets = state.bullets.filter((bullet) => bullet.depth < 1.05);
-
     state.enemies.forEach((enemy) => {
-      enemy.wobble += dt * 3;
-      enemy.x += Math.sin(enemy.wobble) * enemy.drift * dt;
-      enemy.depth -= dt * (currentStage.enemySpeed + state.speed * 0.28);
-    });
-
-    state.bullets.forEach((bullet) => {
-      state.enemies.forEach((enemy) => {
-        if (enemy.hit) return;
-        if (Math.abs(bullet.x - enemy.x) < 0.16 && Math.abs(bullet.depth - enemy.depth) < 0.09) {
-          enemy.hit = true;
-          bullet.hit = true;
-          state.enemiesShot += 1;
-          state.enemyScore += currentStage.enemyPoints;
-          state.score += currentStage.enemyPoints;
-          state.bursts.push({ x: enemy.x, depth: enemy.depth, age: 0 });
-        }
-      });
-    });
-
-    state.bullets = state.bullets.filter((bullet) => !bullet.hit);
-    state.enemies = state.enemies.filter((enemy) => {
-      if (enemy.hit) return false;
-      if (enemy.depth < 0.08) {
-        if (state.mode === "flying" && Math.abs(enemy.x - state.playerX) < 0.32) {
-          beginCrash();
-        }
-        return false;
+      enemy.previousDepth = enemy.depth;
+      enemy.age += dt;
+      enemy.x = enemy.lane + Math.sin(enemy.age * 1.65) * enemy.sweep * enemy.direction;
+      enemy.depth -= dt * (currentStage.enemySpeed + state.speed * 0.28 + (enemy.dive && enemy.depth < 0.5 ? 0.16 : 0));
+      if (enemy.armed && !enemy.fired && enemy.depth < 0.61) {
+        enemy.fired = true;
+        state.hostile.push({ x: enemy.x, depth: enemy.depth });
       }
-      return true;
     });
+
+    for (const bullet of state.bullets) {
+      const prior = bullet.depth;
+      bullet.depth += dt * 1.82;
+      let target = null;
+      for (const enemy of state.enemies) {
+        if (enemy.hit || Math.abs(bullet.x - enemy.x) >= 0.14) continue;
+        // Both objects move in depth. Test the swept interval between animation frames.
+        if (prior - enemy.previousDepth <= 0.055 && bullet.depth - enemy.depth >= -0.055
+            && (!target || enemy.depth < target.depth)) target = enemy;
+      }
+      if (!target) continue;
+      target.hit = true;
+      bullet.hit = true;
+      state.enemiesShot += 1;
+      state.enemyScore += currentStage.enemyPoints;
+      state.score += currentStage.enemyPoints;
+      state.bursts.push({ x: target.x, depth: target.depth, age: 0, points: currentStage.enemyPoints });
+    }
+
+    state.bullets = state.bullets.filter((bullet) => !bullet.hit && bullet.depth < 1.05);
+    const collision = state.mode === "flying" && state.enemies.some((enemy) =>
+      !enemy.hit && enemy.depth < 0.085 && Math.abs(enemy.x - state.playerX) < 0.21);
+    for (const shot of state.hostile) shot.depth -= dt * HOSTILE_SHOT_SPEED;
+    const hit = state.mode === "flying" && state.hostile.some((shot) =>
+      shot.depth < 0.083 && Math.abs(shot.x - state.playerX) < 0.12);
+    if (collision || hit) beginCrash(collision ? "Midair collision" : "Hit by return fire");
+    else {
+      state.enemies = state.enemies.filter((enemy) => !enemy.hit && enemy.depth >= 0.085);
+      state.hostile = state.hostile.filter((shot) => shot.depth >= 0.083);
+    }
 
     state.bursts.forEach((burst) => {
       burst.age += dt;
     });
-    state.bursts = state.bursts.filter((burst) => burst.age < 0.55);
+    state.bursts = state.bursts.filter((burst) => burst.age < 0.72);
 
     if (state.messageTimer > 0) {
       state.messageTimer -= dt;
@@ -820,173 +935,26 @@ function initAirplaneShooter() {
   }
 
   function worldToScreen(x, depth) {
-    const w = canvas.width;
-    const h = canvas.height;
+    const w = viewWidth;
+    const h = viewHeight;
     const horizon = h * 0.34;
     const near = 1 - depth;
     return {
-      x: w * 0.5 + x * w * (0.12 + near * 0.26),
-      y: horizon + Math.pow(near, 1.55) * h * 0.6,
+      x: w * 0.5 + x * w * (0.115 + near * 0.17935),
+      y: horizon + Math.pow(near, 1.55) * h * 0.56,
       scale: 0.35 + near * 1.8
     };
   }
 
   function drawBackground() {
-    const w = canvas.width;
-    const h = canvas.height;
-    const horizon = h * 0.34;
-    const currentStage = stage();
-
-    const sky = ctx.createLinearGradient(0, 0, 0, horizon);
-    sky.addColorStop(0, "#5faee8");
-    sky.addColorStop(0.55, "#a9ddfb");
-    sky.addColorStop(1, "#e6f7ff");
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, w, horizon);
-    drawClouds(horizon);
-
-    if (currentStage.terrain === "water") {
-      drawWater(horizon);
-    } else if (currentStage.terrain === "mountain") {
-      drawField(horizon, "#718850", "#41633f");
-      drawMountains(horizon);
-    } else if (currentStage.terrain === "farm") {
-      drawField(horizon, "#9dbb5f", "#5f943d");
-      drawFarmRows(horizon);
-    } else {
-      drawField(horizon, "#82c66f", "#4f9b5d");
-    }
-
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.fillRect(0, horizon - 2, w, 4);
+    drawScenery(ctx, viewWidth, viewHeight, stage().terrain, state);
     drawRunway();
     drawFinishGate();
-    if (state.takeoffBlend > 0.35 || state.mode === "flying" || state.mode === "crashing") {
-      drawTerrainStripes();
-    }
-  }
-
-  function drawClouds(horizon) {
-    const w = canvas.width;
-    const drift = (state.distance * 5 + state.runway * 1.5) % (w + 220);
-    const clouds = [
-      { x: 80, y: horizon * 0.28, s: 1.05 },
-      { x: 310, y: horizon * 0.18, s: 0.75 },
-      { x: 520, y: horizon * 0.35, s: 0.9 }
-    ];
-
-    ctx.fillStyle = "rgba(255,255,255,0.72)";
-    clouds.forEach((cloud) => {
-      const x = ((cloud.x - drift * 0.25) % (w + 220)) - 90;
-      drawCloud(x, cloud.y, cloud.s);
-    });
-  }
-
-  function drawCloud(x, y, scale) {
-    ctx.beginPath();
-    ctx.ellipse(x, y, 34 * scale, 13 * scale, 0, 0, Math.PI * 2);
-    ctx.ellipse(x + 30 * scale, y + 3 * scale, 30 * scale, 11 * scale, 0, 0, Math.PI * 2);
-    ctx.ellipse(x - 26 * scale, y + 4 * scale, 24 * scale, 10 * scale, 0, 0, Math.PI * 2);
-    ctx.ellipse(x + 2 * scale, y - 9 * scale, 22 * scale, 12 * scale, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  function drawField(horizon, top, bottom) {
-    const h = canvas.height;
-    const ground = ctx.createLinearGradient(0, horizon, 0, h);
-    ground.addColorStop(0, top);
-    ground.addColorStop(1, bottom);
-    ctx.fillStyle = ground;
-    ctx.fillRect(0, horizon, canvas.width, h - horizon);
-
-    ctx.strokeStyle = "rgba(255,255,255,0.12)";
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 7; i += 1) {
-      const y = horizon + ((i * 82 + state.distance * 9) % (h - horizon));
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.bezierCurveTo(canvas.width * 0.25, y + 24, canvas.width * 0.65, y - 18, canvas.width, y + 10);
-      ctx.stroke();
-    }
-  }
-
-  function drawWater(horizon) {
-    const h = canvas.height;
-    const water = ctx.createLinearGradient(0, horizon, 0, h);
-    water.addColorStop(0, "#4ca9d7");
-    water.addColorStop(1, "#1f6792");
-    ctx.fillStyle = water;
-    ctx.fillRect(0, horizon, canvas.width, h - horizon);
-    ctx.strokeStyle = "rgba(255,255,255,0.28)";
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 10; i += 1) {
-      const y = horizon + ((i * 56 + state.distance * 10) % (h - horizon));
-      ctx.beginPath();
-      ctx.moveTo(30, y);
-      ctx.quadraticCurveTo(canvas.width * 0.5, y + 14, canvas.width - 30, y);
-      ctx.stroke();
-    }
-    ctx.fillStyle = "rgba(255,255,255,0.12)";
-    for (let i = 0; i < 16; i += 1) {
-      const x = (i * 73 + state.distance * 11) % canvas.width;
-      const y = horizon + 40 + ((i * 41 + state.distance * 14) % (h - horizon - 40));
-      ctx.fillRect(x, y, 34, 3);
-    }
-  }
-
-  function drawMountains(horizon) {
-    ctx.fillStyle = "#536563";
-    ctx.beginPath();
-    ctx.moveTo(0, horizon);
-    ctx.lineTo(70, horizon - 70);
-    ctx.lineTo(150, horizon);
-    ctx.lineTo(235, horizon - 95);
-    ctx.lineTo(335, horizon);
-    ctx.lineTo(430, horizon - 65);
-    ctx.lineTo(canvas.width, horizon);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = "#8f9c8d";
-    ctx.beginPath();
-    ctx.moveTo(70, horizon - 70);
-    ctx.lineTo(50, horizon - 25);
-    ctx.lineTo(91, horizon - 27);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(235, horizon - 95);
-    ctx.lineTo(205, horizon - 30);
-    ctx.lineTo(268, horizon - 34);
-    ctx.closePath();
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(430, horizon - 65);
-    ctx.lineTo(405, horizon - 22);
-    ctx.lineTo(458, horizon - 24);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  function drawFarmRows(horizon) {
-    ctx.strokeStyle = "rgba(90, 70, 40, 0.22)";
-    for (let i = 0; i < 8; i += 1) {
-      const x = i * 78 + ((state.distance * 6) % 78);
-      ctx.beginPath();
-      ctx.moveTo(x, horizon);
-      ctx.lineTo(x - 120, canvas.height);
-      ctx.stroke();
-    }
-    ctx.fillStyle = "rgba(120, 82, 39, 0.26)";
-    for (let i = 0; i < 10; i += 1) {
-      const y = horizon + ((i * 70 + state.distance * 12) % (canvas.height - horizon));
-      ctx.fillRect(0, y, canvas.width, 12);
-    }
   }
 
   function drawRunway() {
-    const w = canvas.width;
-    const h = canvas.height;
+    const w = viewWidth;
+    const h = viewHeight;
     const horizon = h * 0.34;
     const fade = 1 - Math.min(1, Math.max(0, state.takeoffBlend));
     const slide = state.takeoffBlend * h * 0.52;
@@ -995,7 +963,10 @@ function initAirplaneShooter() {
     ctx.save();
     ctx.globalAlpha = fade;
     ctx.translate(0, slide);
-    ctx.fillStyle = "#454b52";
+    const tarmac = ctx.createLinearGradient(0, horizon, 0, h);
+    tarmac.addColorStop(0, "#82928f");
+    tarmac.addColorStop(1, "#313f4e");
+    ctx.fillStyle = tarmac;
     ctx.beginPath();
     ctx.moveTo(w * 0.46, horizon);
     ctx.lineTo(w * 0.54, horizon);
@@ -1004,7 +975,7 @@ function initAirplaneShooter() {
     ctx.closePath();
     ctx.fill();
 
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.strokeStyle = "#f9edcf";
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(w * 0.31, h);
@@ -1012,6 +983,20 @@ function initAirplaneShooter() {
     ctx.moveTo(w * 0.69, h);
     ctx.lineTo(w * 0.53, horizon);
     ctx.stroke();
+    for (let i = 0; i < 10; i++) {
+      const near = ((i * 0.1 + state.runway * 0.028) % 1) ** 2;
+      const y = horizon + (h - horizon) * near;
+      const spread = w * (0.034 + 0.162 * near);
+      const size = 1 + 3.7 * near;
+      ctx.fillStyle = "#365275";
+      for (const side of [-1, 1]) {
+        const x = w * 0.5 + side * spread;
+        ctx.fillRect(x - size, y - size * 0.55, size * 2, size * 1.45);
+        ctx.fillStyle = "#e0f7fe";
+        ctx.fillRect(x - size * 0.55, y - size * 0.25, size * 1.1, size * 0.55);
+        ctx.fillStyle = "#365275";
+      }
+    }
 
     ctx.strokeStyle = "#f9f5d7";
     ctx.lineWidth = 5;
@@ -1033,9 +1018,9 @@ function initAirplaneShooter() {
 
     const t = 1 - remaining / 9;
     const y = horizon + Math.pow(t, 1.75) * (h - horizon);
-    const width = 48 + t * canvas.width * 0.55;
+    const width = 48 + t * viewWidth * 0.55;
     const stripeHeight = 8 + t * 16;
-    const x = canvas.width / 2 - width / 2;
+    const x = viewWidth / 2 - width / 2;
 
     ctx.fillStyle = "#f7f2d9";
     ctx.fillRect(x, y, width, stripeHeight);
@@ -1077,1117 +1062,176 @@ function initAirplaneShooter() {
     }
   }
 
-  function drawTerrainStripes() {
-    const w = canvas.width;
-    const h = canvas.height;
-    const horizon = h * 0.34;
-    ctx.strokeStyle = "rgba(25, 70, 44, 0.18)";
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 9; i += 1) {
-      const y = horizon + ((i * 72 + state.distance * 8) % (h - horizon));
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y + 14);
-      ctx.stroke();
-    }
-
-    ctx.fillStyle = "rgba(24, 72, 45, 0.18)";
-    for (let i = 0; i < 12; i += 1) {
-      const near = ((i * 0.17 + state.distance * 0.012) % 1);
-      const y = horizon + Math.pow(near, 1.4) * (h - horizon);
-      const x = (i * 97 + state.distance * 23) % w;
-      const size = 3 + near * 16;
-      ctx.beginPath();
-      ctx.ellipse(x, y, size * 1.8, size, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  function drawPlaneShape(x, y, scale, planeId, bank = 0, options = {}) {
-    const plane = planes[planeId];
-    const isEnemy = options.enemy;
-    const propMoving = options.propMoving;
-    const spin = options.spin || 0;
-    const crashed = options.crashed;
-
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(bank * 0.35 + (crashed ? spin : 0));
-    ctx.scale(scale, scale);
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    ctx.strokeStyle = "#162426";
-    ctx.lineWidth = 2;
-
-    if (planeId === "biplane") drawBiplane(plane, isEnemy, propMoving, spin);
-    if (planeId === "mustang") drawMustang(plane, isEnemy, propMoving, spin);
-    if (planeId === "jet") drawJet(plane, isEnemy);
-
-    ctx.restore();
-  }
-
-  function planeColor(plane, isEnemy) {
-    return isEnemy ? "#8f3030" : plane.color;
-  }
-
-  function drawPropeller(y, moving, spin) {
-    ctx.strokeStyle = moving ? "rgba(235,245,255,0.7)" : "#252a2d";
-    ctx.lineWidth = moving ? 2 : 4;
-    if (moving) {
-      ctx.save();
-      ctx.translate(0, y);
-      ctx.rotate(spin);
-      ctx.beginPath();
-      ctx.moveTo(-9, 0);
-      ctx.lineTo(9, 0);
-      ctx.moveTo(0, -4);
-      ctx.lineTo(0, 4);
-      ctx.stroke();
-      ctx.restore();
-      ctx.fillStyle = "rgba(235,245,255,0.2)";
-      ctx.beginPath();
-      ctx.ellipse(0, y, 9, 4, 0, 0, Math.PI * 2);
-      ctx.fill();
-      return;
-    }
-    ctx.beginPath();
-    ctx.moveTo(-14, y);
-    ctx.lineTo(14, y);
-    ctx.moveTo(0, y - 8);
-    ctx.lineTo(0, y + 8);
-    ctx.stroke();
-  }
-
-  function drawBiplane(plane, isEnemy, propMoving, spin) {
-    const body = isEnemy ? "#b94a48" : "#f2331e";
-    const wing = isEnemy ? "#d7b66a" : "#f6c21a";
-    const stripe = isEnemy ? "#f8e7a3" : "#f2f2f2";
-    const cockpit = "#5b95d9";
-    const trim = "#000";
-    const strut = "#2f2f2f";
-    const tire = "#5c5c5c";
-
-    ctx.save();
-    ctx.scale(0.28, 0.28);
-    ctx.translate(-256, -245);
-    ctx.strokeStyle = trim;
-    ctx.lineWidth = 4;
-
-    // Far nose cap behind the body.
-    ctx.beginPath();
-    ctx.moveTo(236, 74);
-    ctx.quadraticCurveTo(256, 50, 276, 74);
-    ctx.lineTo(272, 92);
-    ctx.quadraticCurveTo(256, 86, 240, 92);
-    ctx.closePath();
-    ctx.fillStyle = "#f2f2f2";
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(243, 73);
-    ctx.quadraticCurveTo(256, 59, 269, 73);
-    ctx.lineTo(267, 82);
-    ctx.quadraticCurveTo(256, 79, 245, 82);
-    ctx.closePath();
-    ctx.fillStyle = "#b98649";
-    ctx.fill();
-    ctx.stroke();
-
-    // Upper wings.
-    ctx.beginPath();
-    ctx.moveTo(56, 130);
-    ctx.quadraticCurveTo(56, 112, 77, 112);
-    ctx.lineTo(215, 112);
-    ctx.quadraticCurveTo(231, 112, 231, 129);
-    ctx.lineTo(231, 136);
-    ctx.quadraticCurveTo(231, 152, 215, 152);
-    ctx.lineTo(77, 152);
-    ctx.quadraticCurveTo(56, 152, 56, 134);
-    ctx.closePath();
-    ctx.fillStyle = wing;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(281, 129);
-    ctx.quadraticCurveTo(281, 112, 297, 112);
-    ctx.lineTo(435, 112);
-    ctx.quadraticCurveTo(456, 112, 456, 130);
-    ctx.lineTo(456, 134);
-    ctx.quadraticCurveTo(456, 152, 435, 152);
-    ctx.lineTo(297, 152);
-    ctx.quadraticCurveTo(281, 152, 281, 136);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = stripe;
-    ctx.fillRect(124, 112, 34, 40);
-    ctx.strokeRect(124, 112, 34, 40);
-    ctx.fillRect(354, 112, 34, 40);
-    ctx.strokeRect(354, 112, 34, 40);
-
-    // Lower wings.
-    ctx.beginPath();
-    ctx.moveTo(70, 222);
-    ctx.quadraticCurveTo(70, 203, 92, 203);
-    ctx.lineTo(220, 203);
-    ctx.quadraticCurveTo(241, 203, 241, 221);
-    ctx.lineTo(241, 229);
-    ctx.quadraticCurveTo(241, 247, 220, 247);
-    ctx.lineTo(92, 247);
-    ctx.quadraticCurveTo(70, 247, 70, 228);
-    ctx.closePath();
-    ctx.fillStyle = wing;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(271, 221);
-    ctx.quadraticCurveTo(271, 203, 292, 203);
-    ctx.lineTo(420, 203);
-    ctx.quadraticCurveTo(442, 203, 442, 222);
-    ctx.lineTo(442, 228);
-    ctx.quadraticCurveTo(442, 247, 420, 247);
-    ctx.lineTo(292, 247);
-    ctx.quadraticCurveTo(271, 247, 271, 229);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = stripe;
-    ctx.fillRect(126, 203, 36, 44);
-    ctx.strokeRect(126, 203, 36, 44);
-    ctx.fillRect(350, 203, 36, 44);
-    ctx.strokeRect(350, 203, 36, 44);
-
-    // Interplane struts.
-    ctx.strokeStyle = strut;
-    ctx.lineWidth = 7;
-    [
-      [104, 152, 122, 203],
-      [134, 152, 122, 203],
-      [170, 152, 206, 203],
-      [200, 152, 170, 203],
-      [408, 152, 390, 203],
-      [378, 152, 390, 203],
-      [342, 152, 306, 203],
-      [312, 152, 342, 203]
-    ].forEach(([x1, y1, x2, y2]) => {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-    });
-
-    // Fuselage.
-    ctx.strokeStyle = trim;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(227, 90);
-    ctx.bezierCurveTo(237, 86, 247, 84, 256, 84);
-    ctx.bezierCurveTo(265, 84, 275, 86, 285, 90);
-    ctx.lineTo(285, 261);
-    ctx.bezierCurveTo(285, 291, 276, 322, 265, 350);
-    ctx.lineTo(259, 367);
-    ctx.quadraticCurveTo(256, 377, 253, 367);
-    ctx.lineTo(247, 350);
-    ctx.bezierCurveTo(236, 322, 227, 291, 227, 261);
-    ctx.closePath();
-    ctx.fillStyle = body;
-    ctx.fill();
-    ctx.stroke();
-
-    // Canopy.
-    ctx.beginPath();
-    ctx.ellipse(256, 166, 22, 24, 0, 0, Math.PI * 2);
-    ctx.fillStyle = cockpit;
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse(256, 166, 28, 30, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Center rear fin.
-    ctx.beginPath();
-    ctx.moveTo(256, 236);
-    ctx.bezierCurveTo(245, 236, 242, 247, 242, 268);
-    ctx.lineTo(242, 345);
-    ctx.bezierCurveTo(242, 359, 247, 374, 256, 391);
-    ctx.bezierCurveTo(265, 374, 270, 359, 270, 345);
-    ctx.lineTo(270, 268);
-    ctx.bezierCurveTo(270, 247, 267, 236, 256, 236);
-    ctx.closePath();
-    ctx.fillStyle = body;
-    ctx.fill();
-    ctx.stroke();
-
-    // Tailplanes.
-    ctx.beginPath();
-    ctx.moveTo(138, 287);
-    ctx.bezierCurveTo(166, 271, 199, 268, 230, 275);
-    ctx.lineTo(238, 322);
-    ctx.bezierCurveTo(203, 327, 167, 327, 139, 323);
-    ctx.bezierCurveTo(123, 321, 121, 297, 138, 287);
-    ctx.closePath();
-    ctx.fillStyle = wing;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(374, 287);
-    ctx.bezierCurveTo(346, 271, 313, 268, 282, 275);
-    ctx.lineTo(274, 322);
-    ctx.bezierCurveTo(309, 327, 345, 327, 373, 323);
-    ctx.bezierCurveTo(389, 321, 391, 297, 374, 287);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(172, 306);
-    ctx.lineTo(229, 306);
-    ctx.moveTo(283, 306);
-    ctx.lineTo(340, 306);
-    ctx.stroke();
-
-    ctx.strokeStyle = strut;
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(256, 391);
-    ctx.lineTo(256, 407);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(256, 416, 8, 0, Math.PI * 2);
-    ctx.fillStyle = tire;
-    ctx.fill();
-    ctx.strokeStyle = trim;
-    ctx.lineWidth = 4;
-    ctx.stroke();
-
-    ctx.restore();
-
-    // Keep the propeller animated separately so the SVG-style body can stay crisp.
-    ctx.save();
-    ctx.translate(0, -50);
-    if (propMoving) {
-      ctx.rotate(spin || 0);
-      ctx.fillStyle = "rgba(70,70,70,0.18)";
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 18, 3, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 3, 18, 0, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      ctx.rotate(spin || 0);
-      ctx.strokeStyle = "#444";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(-20, 0);
-      ctx.lineTo(20, 0);
-      ctx.moveTo(0, -20);
-      ctx.lineTo(0, 20);
-      ctx.stroke();
-    }
-    ctx.beginPath();
-    ctx.arc(0, 0, 3, 0, Math.PI * 2);
-    ctx.fillStyle = "#999";
-    ctx.fill();
-    ctx.restore();
-  }
-
-  function drawMustang(plane, isEnemy, propMoving, spin) {
-    const body = isEnemy ? "#8f9aa2" : "#d9d9dc";
-    const shadow = isEnemy ? "#4f5056" : "#444";
-    const red = isEnemy ? "#c74b46" : "#f2331e";
-    const yellow = isEnemy ? "#d6b040" : "#f1be1a";
-    const cockpit = isEnemy ? "#6db4df" : "#4fa9ee";
-    const trim = "#000";
-    const panel = "#7a7a7a";
-
-    ctx.save();
-    ctx.scale(0.28, 0.28);
-    ctx.translate(-256, -250);
-    ctx.strokeStyle = trim;
-    ctx.lineWidth = 4;
-
-    // Spinner and checker nose band. The propeller is intentionally animated separately.
-    ctx.beginPath();
-    ctx.moveTo(237, 97);
-    ctx.quadraticCurveTo(256, 64, 275, 97);
-    ctx.lineTo(272, 110);
-    ctx.quadraticCurveTo(256, 105, 240, 110);
-    ctx.closePath();
-    ctx.fillStyle = red;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.rect(226, 102, 60, 30);
-    ctx.fillStyle = yellow;
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = red;
-    ctx.fillRect(226, 102, 15, 15);
-    ctx.fillRect(256, 102, 15, 15);
-    ctx.fillRect(241, 117, 15, 15);
-    ctx.fillRect(271, 117, 15, 15);
-
-    // Main wings.
-    ctx.beginPath();
-    ctx.moveTo(38, 196);
-    ctx.quadraticCurveTo(38, 166, 72, 164);
-    ctx.lineTo(210, 154);
-    ctx.quadraticCurveTo(231, 152, 231, 176);
-    ctx.lineTo(231, 258);
-    ctx.quadraticCurveTo(231, 276, 212, 275);
-    ctx.lineTo(74, 252);
-    ctx.quadraticCurveTo(38, 246, 38, 221);
-    ctx.closePath();
-    ctx.fillStyle = body;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(474, 196);
-    ctx.quadraticCurveTo(474, 166, 440, 164);
-    ctx.lineTo(302, 154);
-    ctx.quadraticCurveTo(281, 152, 281, 176);
-    ctx.lineTo(281, 258);
-    ctx.quadraticCurveTo(281, 276, 300, 275);
-    ctx.lineTo(438, 252);
-    ctx.quadraticCurveTo(474, 246, 474, 221);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.strokeStyle = panel;
-    ctx.lineWidth = 2;
-    [[98, 172, 94, 246], [150, 161, 148, 260], [362, 260, 374, 161], [414, 246, 420, 172], [72, 198, 230, 208], [282, 208, 440, 198]].forEach(([x1, y1, x2, y2]) => {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-    });
-
-    ctx.fillStyle = shadow;
-    ctx.fillRect(154, 155, 32, 118);
-    ctx.fillRect(326, 155, 32, 118);
-    ctx.fillStyle = "#f2f2f2";
-    ctx.fillRect(186, 155, 24, 118);
-    ctx.fillRect(302, 155, 24, 118);
-
-    // Fuselage.
-    ctx.strokeStyle = trim;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(226, 132);
-    ctx.bezierCurveTo(235, 129, 245, 128, 256, 128);
-    ctx.bezierCurveTo(267, 128, 277, 129, 286, 132);
-    ctx.lineTo(289, 270);
-    ctx.bezierCurveTo(289, 311, 278, 355, 266, 395);
-    ctx.lineTo(261, 413);
-    ctx.quadraticCurveTo(256, 426, 251, 413);
-    ctx.lineTo(246, 395);
-    ctx.bezierCurveTo(234, 355, 223, 311, 223, 270);
-    ctx.closePath();
-    ctx.fillStyle = body;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = shadow;
-    ctx.fillRect(223, 268, 66, 28);
-    ctx.fillStyle = red;
-    ctx.fillRect(246, 295, 20, 118);
-
-    // Canopy.
-    ctx.beginPath();
-    ctx.ellipse(256, 198, 17, 30, 0, 0, Math.PI * 2);
-    ctx.fillStyle = cockpit;
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(239, 198);
-    ctx.quadraticCurveTo(256, 168, 273, 198);
-    ctx.stroke();
-    ctx.strokeStyle = "#8fd0ff";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(256, 170);
-    ctx.lineTo(256, 228);
-    ctx.stroke();
-
-    // Tailplanes.
-    ctx.strokeStyle = trim;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(126, 326);
-    ctx.quadraticCurveTo(126, 295, 158, 300);
-    ctx.lineTo(229, 312);
-    ctx.quadraticCurveTo(246, 315, 246, 333);
-    ctx.lineTo(246, 364);
-    ctx.quadraticCurveTo(246, 377, 230, 378);
-    ctx.lineTo(154, 373);
-    ctx.quadraticCurveTo(126, 371, 126, 346);
-    ctx.closePath();
-    ctx.fillStyle = body;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(386, 326);
-    ctx.quadraticCurveTo(386, 295, 354, 300);
-    ctx.lineTo(283, 312);
-    ctx.quadraticCurveTo(266, 315, 266, 333);
-    ctx.lineTo(266, 364);
-    ctx.quadraticCurveTo(266, 377, 282, 378);
-    ctx.lineTo(358, 373);
-    ctx.quadraticCurveTo(386, 371, 386, 346);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.strokeStyle = panel;
-    ctx.lineWidth = 2;
-    [[168, 313, 168, 375], [344, 313, 344, 375], [142, 351, 244, 351], [268, 351, 370, 351]].forEach(([x1, y1, x2, y2]) => {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-    });
-
-    // Star roundel.
-    ctx.fillStyle = "#14379e";
-    ctx.beginPath();
-    ctx.arc(108, 202, 22, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(74, 195, 68, 14);
-    ctx.beginPath();
-    ctx.moveTo(108, 180);
-    ctx.lineTo(114, 193);
-    ctx.lineTo(128, 194);
-    ctx.lineTo(117, 203);
-    ctx.lineTo(120, 217);
-    ctx.lineTo(108, 209);
-    ctx.lineTo(96, 217);
-    ctx.lineTo(99, 203);
-    ctx.lineTo(88, 194);
-    ctx.lineTo(102, 193);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = "#14379e";
-    ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.arc(108, 202, 22, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.lineWidth = 4;
-    ctx.strokeRect(74, 195, 68, 14);
-
-    ctx.restore();
-
-    ctx.save();
-    ctx.translate(0, -50);
-    ctx.rotate(spin || 0);
-    if (propMoving) {
-      ctx.fillStyle = "rgba(60,60,60,0.18)";
-      ctx.beginPath();
-      ctx.ellipse(0, 0, 19, 3, 0, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      ctx.strokeStyle = "#333";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(-22, 0);
-      ctx.lineTo(22, 0);
-      ctx.stroke();
-    }
-    ctx.beginPath();
-    ctx.arc(0, 0, 3, 0, Math.PI * 2);
-    ctx.fillStyle = "#999";
-    ctx.fill();
-    ctx.restore();
-  }
-
-  function drawJet(plane, isEnemy) {
-    const body = isEnemy ? "#6f5aa2" : "#5b90c8";
-    const dark = isEnemy ? "#41345f" : "#3d6f9e";
-    const accent = isEnemy ? "#ffcf70" : "#f2c21c";
-    const cockpit = "#58aeef";
-    const trim = "#000";
-    const panel = isEnemy ? "#3d3556" : "#3a628c";
-
-    ctx.save();
-    ctx.scale(0.28, 0.28);
-    ctx.translate(-256, -255);
-    ctx.strokeStyle = trim;
-    ctx.lineWidth = 4;
-
-    // Fuselage.
-    ctx.beginPath();
-    ctx.moveTo(244, 52);
-    ctx.quadraticCurveTo(256, 30, 268, 52);
-    ctx.bezierCurveTo(280, 74, 286, 94, 288, 122);
-    ctx.lineTo(291, 235);
-    ctx.bezierCurveTo(292, 267, 282, 311, 270, 352);
-    ctx.lineTo(264, 372);
-    ctx.quadraticCurveTo(256, 390, 248, 372);
-    ctx.lineTo(242, 352);
-    ctx.bezierCurveTo(230, 311, 220, 267, 221, 235);
-    ctx.lineTo(224, 122);
-    ctx.bezierCurveTo(226, 94, 232, 74, 244, 52);
-    ctx.closePath();
-    ctx.fillStyle = body;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.rect(229, 108, 54, 20);
-    ctx.fillStyle = accent;
-    ctx.fill();
-    ctx.stroke();
-
-    // Cockpit.
-    ctx.beginPath();
-    ctx.moveTo(238, 88);
-    ctx.quadraticCurveTo(256, 66, 274, 88);
-    ctx.lineTo(278, 150);
-    ctx.quadraticCurveTo(256, 162, 234, 150);
-    ctx.closePath();
-    ctx.fillStyle = cockpit;
-    ctx.fill();
-    ctx.stroke();
-    ctx.strokeStyle = "#98d8ff";
-    ctx.beginPath();
-    ctx.moveTo(256, 80);
-    ctx.lineTo(256, 154);
-    ctx.stroke();
-    ctx.strokeStyle = "#2b6fa5";
-    ctx.beginPath();
-    ctx.moveTo(240, 102);
-    ctx.quadraticCurveTo(256, 80, 272, 102);
-    ctx.stroke();
-
-    // Main wings.
-    ctx.strokeStyle = trim;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(48, 230);
-    ctx.quadraticCurveTo(48, 205, 74, 196);
-    ctx.lineTo(216, 160);
-    ctx.quadraticCurveTo(236, 155, 240, 178);
-    ctx.lineTo(248, 250);
-    ctx.quadraticCurveTo(250, 266, 233, 272);
-    ctx.lineTo(95, 311);
-    ctx.quadraticCurveTo(61, 321, 48, 293);
-    ctx.closePath();
-    ctx.fillStyle = body;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(464, 230);
-    ctx.quadraticCurveTo(464, 205, 438, 196);
-    ctx.lineTo(296, 160);
-    ctx.quadraticCurveTo(276, 155, 272, 178);
-    ctx.lineTo(264, 250);
-    ctx.quadraticCurveTo(262, 266, 279, 272);
-    ctx.lineTo(417, 311);
-    ctx.quadraticCurveTo(451, 321, 464, 293);
-    ctx.closePath();
-    ctx.fillStyle = body;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 7;
-    [[88, 290, 214, 255], [424, 290, 298, 255]].forEach(([x1, y1, x2, y2]) => {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-    });
-    ctx.lineWidth = 4;
-    [[118, 282, 231, 249], [394, 282, 281, 249]].forEach(([x1, y1, x2, y2]) => {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-    });
-
-    // Wingtip pods and panel hints.
-    ctx.strokeStyle = trim;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(62, 238);
-    ctx.quadraticCurveTo(57, 225, 67, 219);
-    ctx.lineTo(78, 246);
-    ctx.quadraticCurveTo(71, 251, 62, 238);
-    ctx.closePath();
-    ctx.fillStyle = "#6d9dcd";
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(450, 238);
-    ctx.quadraticCurveTo(455, 225, 445, 219);
-    ctx.lineTo(434, 246);
-    ctx.quadraticCurveTo(441, 251, 450, 238);
-    ctx.closePath();
-    ctx.fillStyle = "#6d9dcd";
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.strokeStyle = panel;
-    ctx.lineWidth = 2;
-    [[92, 232, 86, 308], [146, 218, 136, 296], [204, 188, 192, 277], [308, 188, 320, 277], [366, 218, 376, 296], [420, 232, 426, 308]].forEach(([x1, y1, x2, y2]) => {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-    });
-
-    // Tailplanes and vertical fin.
-    ctx.strokeStyle = trim;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(130, 346);
-    ctx.quadraticCurveTo(130, 322, 154, 322);
-    ctx.lineTo(231, 320);
-    ctx.quadraticCurveTo(247, 320, 247, 337);
-    ctx.lineTo(247, 377);
-    ctx.quadraticCurveTo(247, 390, 232, 390);
-    ctx.lineTo(154, 391);
-    ctx.quadraticCurveTo(130, 391, 130, 368);
-    ctx.closePath();
-    ctx.fillStyle = body;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(382, 346);
-    ctx.quadraticCurveTo(382, 322, 358, 322);
-    ctx.lineTo(281, 320);
-    ctx.quadraticCurveTo(265, 320, 265, 337);
-    ctx.lineTo(265, 377);
-    ctx.quadraticCurveTo(265, 390, 280, 390);
-    ctx.lineTo(358, 391);
-    ctx.quadraticCurveTo(382, 391, 382, 368);
-    ctx.closePath();
-    ctx.fillStyle = body;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(236, 270);
-    ctx.bezierCurveTo(242, 244, 249, 230, 256, 230);
-    ctx.bezierCurveTo(263, 230, 270, 244, 276, 270);
-    ctx.lineTo(286, 357);
-    ctx.quadraticCurveTo(287, 370, 276, 370);
-    ctx.lineTo(236, 370);
-    ctx.quadraticCurveTo(225, 370, 226, 357);
-    ctx.closePath();
-    ctx.fillStyle = body;
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.moveTo(266, 282);
-    ctx.lineTo(252, 305);
-    ctx.lineTo(266, 305);
-    ctx.lineTo(248, 338);
-    ctx.stroke();
-
-    // Intakes and body accent.
-    ctx.fillStyle = accent;
-    ctx.beginPath();
-    ctx.moveTo(237, 220);
-    ctx.lineTo(256, 238);
-    ctx.lineTo(275, 220);
-    ctx.lineTo(275, 238);
-    ctx.lineTo(256, 255);
-    ctx.lineTo(237, 238);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = trim;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(205, 252);
-    ctx.quadraticCurveTo(210, 239, 223, 238);
-    ctx.lineTo(227, 275);
-    ctx.quadraticCurveTo(212, 275, 205, 252);
-    ctx.closePath();
-    ctx.fillStyle = dark;
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(307, 252);
-    ctx.quadraticCurveTo(302, 239, 289, 238);
-    ctx.lineTo(285, 275);
-    ctx.quadraticCurveTo(300, 275, 307, 252);
-    ctx.closePath();
-    ctx.fillStyle = dark;
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(212, 249);
-    ctx.quadraticCurveTo(216, 244, 223, 244);
-    ctx.lineTo(224, 264);
-    ctx.quadraticCurveTo(216, 264, 212, 249);
-    ctx.closePath();
-    ctx.fillStyle = "#1f1f22";
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(300, 249);
-    ctx.quadraticCurveTo(296, 244, 289, 244);
-    ctx.lineTo(288, 264);
-    ctx.quadraticCurveTo(296, 264, 300, 249);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Exhaust flame.
-    ctx.strokeStyle = trim;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(244, 366);
-    ctx.quadraticCurveTo(256, 395, 268, 366);
-    ctx.lineTo(264, 401);
-    ctx.quadraticCurveTo(256, 413, 248, 401);
-    ctx.closePath();
-    ctx.fillStyle = "#ff7b1a";
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(248, 372);
-    ctx.quadraticCurveTo(256, 389, 264, 372);
-    ctx.lineTo(261, 393);
-    ctx.quadraticCurveTo(256, 401, 251, 393);
-    ctx.closePath();
-    ctx.fillStyle = "#ffd24a";
-    ctx.fill();
-
-    // Redraw fuselage outline over overlaps.
-    ctx.strokeStyle = trim;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(244, 52);
-    ctx.quadraticCurveTo(256, 30, 268, 52);
-    ctx.bezierCurveTo(280, 74, 286, 94, 288, 122);
-    ctx.lineTo(291, 235);
-    ctx.bezierCurveTo(292, 267, 282, 311, 270, 352);
-    ctx.lineTo(264, 372);
-    ctx.quadraticCurveTo(256, 390, 248, 372);
-    ctx.lineTo(242, 352);
-    ctx.bezierCurveTo(230, 311, 220, 267, 221, 235);
-    ctx.lineTo(224, 122);
-    ctx.bezierCurveTo(226, 94, 232, 74, 244, 52);
-    ctx.stroke();
-
-    drawTinyRoundel(112, 258, 19);
-    drawTinyRoundel(400, 258, 19);
-    ctx.restore();
-  }
-
-  function drawTinyRoundel(x, y, radius) {
-    ctx.fillStyle = "#14379e";
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(x - radius * 1.52, y - radius * 0.32, radius * 3.05, radius * 0.63);
-    ctx.beginPath();
-    ctx.moveTo(x, y - radius * 0.95);
-    ctx.lineTo(x + radius * 0.26, y - radius * 0.37);
-    ctx.lineTo(x + radius * 0.89, y - radius * 0.32);
-    ctx.lineTo(x + radius * 0.42, y + radius * 0.11);
-    ctx.lineTo(x + radius * 0.58, y + radius * 0.74);
-    ctx.lineTo(x, y + radius * 0.37);
-    ctx.lineTo(x - radius * 0.58, y + radius * 0.74);
-    ctx.lineTo(x - radius * 0.42, y + radius * 0.11);
-    ctx.lineTo(x - radius * 0.89, y - radius * 0.32);
-    ctx.lineTo(x - radius * 0.26, y - radius * 0.37);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = "#14379e";
-    ctx.lineWidth = 7;
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.lineWidth = 4;
-    ctx.strokeRect(x - radius * 1.52, y - radius * 0.32, radius * 3.05, radius * 0.63);
-  }
-
-  function drawEnemyFighter(x, y, scale, spin) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(Math.PI);
-    ctx.scale(scale, scale);
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-
-    ctx.save();
-    ctx.scale(0.28, 0.28);
-    ctx.translate(-256, -250);
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = 4;
-
-    // Spinner and nose band from the supplied enemy fighter art.
-    ctx.beginPath();
-    ctx.moveTo(237, 98);
-    ctx.quadraticCurveTo(256, 64, 275, 98);
-    ctx.lineTo(272, 111);
-    ctx.quadraticCurveTo(256, 106, 240, 111);
-    ctx.closePath();
-    ctx.fillStyle = "#2f8a64";
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.rect(228, 106, 56, 26);
-    ctx.fillStyle = "#d7d1b2";
-    ctx.fill();
-    ctx.stroke();
-
-    // Main wings.
-    ctx.beginPath();
-    ctx.moveTo(42, 196);
-    ctx.quadraticCurveTo(42, 168, 74, 164);
-    ctx.lineTo(212, 154);
-    ctx.quadraticCurveTo(231, 152, 231, 175);
-    ctx.lineTo(231, 260);
-    ctx.quadraticCurveTo(231, 276, 213, 275);
-    ctx.lineTo(76, 253);
-    ctx.quadraticCurveTo(42, 248, 42, 222);
-    ctx.closePath();
-    ctx.fillStyle = "#cfc9ae";
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(470, 196);
-    ctx.quadraticCurveTo(470, 168, 438, 164);
-    ctx.lineTo(300, 154);
-    ctx.quadraticCurveTo(281, 152, 281, 175);
-    ctx.lineTo(281, 260);
-    ctx.quadraticCurveTo(281, 276, 299, 275);
-    ctx.lineTo(436, 253);
-    ctx.quadraticCurveTo(470, 248, 470, 222);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.strokeStyle = "#9e987e";
-    ctx.lineWidth = 2;
-    [[98, 172, 94, 248], [150, 161, 148, 260], [362, 260, 374, 161], [414, 248, 420, 172], [72, 200, 230, 208], [282, 208, 440, 200]].forEach(([x1, y1, x2, y2]) => {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-    });
-
-    // Fuselage.
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(224, 132);
-    ctx.bezierCurveTo(234, 129, 245, 128, 256, 128);
-    ctx.bezierCurveTo(267, 128, 278, 129, 288, 132);
-    ctx.lineTo(289, 274);
-    ctx.bezierCurveTo(289, 313, 278, 354, 266, 394);
-    ctx.lineTo(261, 412);
-    ctx.quadraticCurveTo(256, 425, 251, 412);
-    ctx.lineTo(246, 394);
-    ctx.bezierCurveTo(234, 354, 223, 313, 223, 274);
-    ctx.closePath();
-    ctx.fillStyle = "#cfc9ae";
-    ctx.fill();
-    ctx.stroke();
-
-    // Canopy and fuselage stripe.
-    ctx.beginPath();
-    ctx.ellipse(256, 198, 16, 29, 0, 0, Math.PI * 2);
-    ctx.fillStyle = "#4fa9ee";
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(240, 198);
-    ctx.quadraticCurveTo(256, 168, 272, 198);
-    ctx.stroke();
-    ctx.strokeStyle = "#9fdbff";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(256, 170);
-    ctx.lineTo(256, 227);
-    ctx.stroke();
-
-    ctx.fillStyle = "#be2c2c";
-    ctx.fillRect(246, 296, 20, 116);
-
-    // Tailplanes.
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(126, 326);
-    ctx.quadraticCurveTo(126, 296, 158, 300);
-    ctx.lineTo(229, 312);
-    ctx.quadraticCurveTo(246, 315, 246, 333);
-    ctx.lineTo(246, 364);
-    ctx.quadraticCurveTo(246, 377, 230, 378);
-    ctx.lineTo(154, 373);
-    ctx.quadraticCurveTo(126, 371, 126, 346);
-    ctx.closePath();
-    ctx.fillStyle = "#cfc9ae";
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(386, 326);
-    ctx.quadraticCurveTo(386, 296, 354, 300);
-    ctx.lineTo(283, 312);
-    ctx.quadraticCurveTo(266, 315, 266, 333);
-    ctx.lineTo(266, 364);
-    ctx.quadraticCurveTo(266, 377, 282, 378);
-    ctx.lineTo(358, 373);
-    ctx.quadraticCurveTo(386, 371, 386, 346);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.strokeStyle = "#9e987e";
-    ctx.lineWidth = 2;
-    [[168, 314, 168, 375], [344, 314, 344, 375]].forEach(([x1, y1, x2, y2]) => {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-    });
-
-    drawHinomaruRoundel(108, 204, 20);
-    drawHinomaruRoundel(404, 204, 20);
-    ctx.restore();
-
-    // Animated propeller. The whole enemy plane is rotated, so this appears at the nose facing the player.
-    ctx.save();
-    ctx.translate(0, -50);
-    ctx.rotate(spin || 0);
-    ctx.fillStyle = "rgba(43,43,43,0.18)";
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 20, 4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 4, 20, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(0, 0, 3, 0, Math.PI * 2);
-    ctx.fillStyle = "#9a9a9a";
-    ctx.fill();
-    ctx.restore();
-
-    ctx.restore();
-  }
-
-  function drawHinomaruRoundel(x, y, radius) {
-    ctx.fillStyle = "#fff7ef";
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#c82424";
-    ctx.beginPath();
-    ctx.arc(x, y, radius * 0.55, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  function roundRect(x, y, width, height, radius) {
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.lineTo(x + width - radius, y);
-    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-    ctx.lineTo(x + width, y + height - radius);
-    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-    ctx.lineTo(x + radius, y + height);
-    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-    ctx.lineTo(x, y + radius);
-    ctx.quadraticCurveTo(x, y, x + radius, y);
-    ctx.closePath();
-  }
-
   function drawBullets() {
-    ctx.fillStyle = "#fff2a8";
-    state.bullets.forEach((bullet) => {
-      const point = worldToScreen(bullet.x, bullet.depth);
+    for (const bullet of state.bullets) {
+      const nose = worldToScreen(bullet.x, bullet.depth);
+      const tail = worldToScreen(bullet.x, Math.max(0, bullet.depth - 0.072));
       ctx.beginPath();
-      ctx.arc(point.x, point.y, 4 * point.scale, 0, Math.PI * 2);
-      ctx.fill();
-    });
+      ctx.moveTo(tail.x, tail.y);
+      ctx.lineTo(nose.x, nose.y);
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(239,153,64,.68)";
+      ctx.lineWidth = 4.8 * nose.scale;
+      ctx.stroke();
+      ctx.lineWidth = 1.7 * nose.scale;
+      ctx.strokeStyle = "#fff5bb";
+      ctx.stroke();
+    }
+    for (const shot of state.hostile) {
+      const tip = worldToScreen(shot.x, shot.depth);
+      const tail = worldToScreen(shot.x, shot.depth + 0.055);
+      ctx.beginPath();
+      ctx.moveTo(tail.x, tail.y);
+      ctx.lineTo(tip.x, tip.y);
+      ctx.strokeStyle = "#d34461";
+      ctx.lineWidth = 6.3 * tip.scale;
+      ctx.stroke();
+      ctx.strokeStyle = "#ffe0d5";
+      ctx.lineWidth = 2.6 * tip.scale;
+      ctx.stroke();
+    }
   }
 
   function drawEnemies() {
-    state.enemies
-      .slice()
-      .sort((a, b) => b.depth - a.depth)
-      .forEach((enemy) => {
-        const point = worldToScreen(enemy.x, enemy.depth);
-        drawEnemyFighter(point.x, point.y, 0.28 * point.scale, state.propSpin);
+    for (const enemy of [...state.enemies].sort((a, b) => b.depth - a.depth)) {
+      const point = worldToScreen(enemy.x, enemy.depth);
+      paintAircraft(ctx, "interceptor", point.x, point.y, 0.32 * point.scale * aircraftScale(), {
+        bank: Math.cos(enemy.age * 1.65) * enemy.sweep * enemy.direction * 1.7,
+        moving: true
       });
+      if (enemy.armed && !enemy.fired && enemy.depth < 0.81) {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, (16 + (0.81 - enemy.depth) * 25) * point.scale, 0, Math.PI * 2);
+        ctx.strokeStyle = "#ff9aab";
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+      }
+      if (enemy.dive || enemy.depth < 0.32) {
+        const radius = 22 * point.scale * aircraftScale();
+        ctx.strokeStyle = enemy.depth < 0.32 ? "#ffd38aed" : "#f7e4bd9c";
+        ctx.lineWidth = 1.6;
+        for (const side of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(point.x + side * (radius - 7), point.y + radius * 0.48);
+          ctx.lineTo(point.x + side * radius, point.y + radius * 0.48);
+          ctx.lineTo(point.x + side * radius, point.y + radius * 0.24);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  function drawReticle() {
+    if (state.mode !== "flying") return;
+    const point = worldToScreen(state.playerX, 0.54);
+    const aligned = state.enemies.some((enemy) => enemy.depth > 0.2 && enemy.depth < 0.85 && Math.abs(enemy.x - state.playerX) < 0.14);
+    ctx.save();
+    ctx.translate(point.x, point.y);
+    ctx.shadowColor = "#0d2833";
+    ctx.shadowBlur = 4;
+    ctx.strokeStyle = aligned ? "#fff3a8" : "#ebf6ecaf";
+    ctx.lineWidth = 1.75;
+    ctx.beginPath();
+    ctx.arc(0, 0, 11, -0.42, 0.42);
+    ctx.moveTo(-11 * Math.cos(0.42), 11 * Math.sin(0.42));
+    ctx.arc(0, 0, 11, Math.PI - 0.42, Math.PI + 0.42, false);
+    ctx.stroke();
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.fillRect(-1, -1, 2, 2);
+    ctx.restore();
   }
 
   function drawBursts() {
-    state.bursts.forEach((burst) => {
+    for (const burst of state.bursts) {
       const point = worldToScreen(burst.x, burst.depth);
-      const radius = (12 + burst.age * 58) * point.scale;
-      ctx.fillStyle = `rgba(255, 226, 102, ${Math.max(0, 1 - burst.age * 2.2)})`;
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = `rgba(222, 70, 44, ${Math.max(0, 0.9 - burst.age * 1.8)})`;
-      ctx.beginPath();
-      ctx.arc(point.x + radius * 0.28, point.y - radius * 0.16, radius * 0.48, 0, Math.PI * 2);
-      ctx.arc(point.x - radius * 0.24, point.y + radius * 0.18, radius * 0.38, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = `rgba(45, 47, 48, ${Math.max(0, 0.55 - burst.age)})`;
-      ctx.lineWidth = Math.max(2, 5 * point.scale);
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, radius * 1.25, 0, Math.PI * 2);
-      ctx.stroke();
-    });
+      const age = burst.age / 0.72;
+      const spread = (8 + age * 62) * point.scale;
+      ctx.save();
+      ctx.translate(point.x, point.y);
+      for (let i = 0; i < 9; i++) {
+        const angle = i * 2.399;
+        const dx = Math.cos(angle) * spread * (0.49 + (i % 4) * 0.15);
+        const dy = Math.sin(angle) * spread * 0.78 - age * 8;
+        const radius = (4 + age * 13) * point.scale * (0.7 + (i % 3) * 0.14);
+        ctx.globalAlpha = (1 - age) * 0.56;
+        ctx.fillStyle = i % 2 === 0 ? "#2e4650" : "#56656a";
+        ctx.beginPath();
+        ctx.arc(dx * 0.55, dy * 0.55, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = Math.max(0, 1 - age * 1.4);
+        ctx.strokeStyle = i % 3 === 0 ? "#fff5b8" : "#f79850";
+        ctx.lineWidth = Math.max(1, 2.1 * point.scale);
+        ctx.beginPath();
+        ctx.moveTo(dx * 0.72, dy * 0.72);
+        ctx.lineTo(dx, dy);
+        ctx.stroke();
+      }
+      if (age < 0.24) {
+        ctx.globalAlpha = 1 - age * 4;
+        ctx.fillStyle = "#fff1b0";
+        ctx.beginPath();
+        ctx.arc(0, 0, (7 + age * 41) * point.scale, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (burst.points) {
+        ctx.globalAlpha = Math.min(1, 2.5 * (1 - age));
+        ctx.textAlign = "center";
+        ctx.font = "800 17px system-ui";
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#163343";
+        ctx.fillStyle = "#fff0b8";
+        const label = `+${burst.points}`;
+        const y = -20 - age * 28;
+        ctx.strokeText(label, 0, y);
+        ctx.fillText(label, 0, y);
+      }
+      ctx.restore();
+    }
+  }
+
+  function aircraftScale() {
+    return Math.max(0.66, Math.min(1.38, viewHeight / 610, viewWidth / 670));
   }
 
   function drawPlayer() {
-    const w = canvas.width;
-    const h = canvas.height;
+    const w = viewWidth;
+    const h = viewHeight;
     const stallAmount = Math.min(1, state.stallTimer / 3.2);
     const stallWobble = stallAmount > 0 ? Math.sin(state.stallWobble) * stallAmount : 0;
     const x = w * 0.5 + state.playerX * w * 0.28 + stallWobble * 18;
     const y = h * (state.planeY + stallAmount * 0.07);
     const bank = state.bankVelocity + stallWobble * 0.8;
     const moving = state.speed > 0.12 || state.mode !== "takeoff";
-    drawPlaneShape(x, y, state.mode === "takeoff" ? 0.9 + state.speed * 0.2 : 1, state.selectedPlane, bank, {
-      propMoving: moving,
-      spin: state.propSpin
+    const size = aircraftScale() * (state.mode === "takeoff" ? 0.9 + state.speed * 0.2 : 1);
+    if (state.mode === "takeoff" && state.takeoffBlend < 0.85) {
+      ctx.fillStyle = `rgba(15,27,39,${0.36 * (1 - state.takeoffBlend)})`;
+      ctx.beginPath();
+      ctx.ellipse(x + 16 * size, y + (28 + 43 * state.takeoffBlend) * size, 60 * size, 9 * size, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (state.mode === "flying" && Math.abs(bank) > 0.46) {
+      ctx.strokeStyle = "rgba(240,255,250,.40)";
+      ctx.lineWidth = 1.4 * size;
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(x + side * 43 * size, y + side * bank * 12 * size);
+        ctx.quadraticCurveTo(x + (side * 47 - bank * 9) * size, y + 24 * size, x + (side * 63 - bank * 20) * size, y + 55 * size);
+        ctx.stroke();
+      }
+    }
+    paintAircraft(ctx, state.selectedPlane, x, y, size, {
+      bank,
+      moving,
+      prop: state.propSpin
     });
   }
 
   function drawCrashPlane() {
-    const w = canvas.width;
-    const h = canvas.height;
+    const w = viewWidth;
+    const h = viewHeight;
     const x = w * 0.5 + state.crashX * w * 0.28;
     const y = h * state.crashY;
-    drawPlaneShape(x, y, 1, state.selectedPlane, 0, {
-      propMoving: false,
-      spin: state.crashSpin,
-      crashed: true
-    });
+    paintAircraft(ctx, state.selectedPlane, x, y, aircraftScale(), { spin: state.crashSpin });
     ctx.strokeStyle = "rgba(50,50,50,0.45)";
     ctx.lineWidth = 7;
     ctx.beginPath();
@@ -2202,11 +1246,9 @@ function initAirplaneShooter() {
     ctx.stroke();
   }
 
-  function drawLives() {
-  }
-
   function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    ctx.clearRect(0, 0, viewWidth, viewHeight);
     drawBackground();
     drawBullets();
     drawEnemies();
@@ -2216,29 +1258,25 @@ function initAirplaneShooter() {
     } else {
       drawPlayer();
     }
-    drawLives();
+    drawReticle();
+    const shade = ctx.createLinearGradient(0, 0, 0, viewHeight);
+    shade.addColorStop(0, "#112f4773");
+    shade.addColorStop(0.2, "#112f4700");
+    shade.addColorStop(0.73, "#112f4700");
+    shade.addColorStop(1, "#0d2238aa");
+    ctx.fillStyle = shade;
+    ctx.fillRect(0, 0, viewWidth, viewHeight);
   }
 
   function loop(time) {
-    if (!canvas.isConnected || ["select", "stageComplete", "crashed", "paused"].includes(state.mode)) return;
-    const dt = Math.min(0.04, (time - state.lastTime) / 1000 || 0.016);
+    frame = undefined;
+    if (!canvas.isConnected || !AIRBORNE_MODES.includes(state.mode)) return;
+    const dt = state.lastTime ? Math.min(0.04, (time - state.lastTime) / 1000) : 0;
     state.lastTime = time;
     update(dt);
     draw();
-    requestAnimationFrame(loop);
+    if (AIRBORNE_MODES.includes(state.mode)) frame = requestAnimationFrame(loop);
   }
-
-  function holdStart(action) {
-    if (action === "left" && state.mode === "flying") input.left = true;
-    if (action === "right" && state.mode === "flying") input.right = true;
-  }
-
-  function holdEnd(action) {
-    if (action === "left") input.left = false;
-    if (action === "right") input.right = false;
-  }
-
-  let lastPointerCommandAt = 0;
 
   function runButtonCommand(target) {
     const planeButton = target.closest("[data-plane-choice]");
@@ -2250,18 +1288,22 @@ function initAirplaneShooter() {
       restartFromSelect();
       return true;
     }
+    if (target.closest("[data-air-pause]")) {
+      pause();
+      return true;
+    }
     if (target.closest("[data-start-flight]")) {
       startGame();
       return true;
     }
     if (target.closest("[data-throttle-up]")) {
-      state.throttle = Math.min(4, state.throttle + 1);
-      updateHud();
+      changeThrottle(1);
+      canvas.focus({ preventScroll: true });
       return true;
     }
     if (target.closest("[data-throttle-down]")) {
-      state.throttle = Math.max(0, state.throttle - 1);
-      updateHud();
+      changeThrottle(-1);
+      canvas.focus({ preventScroll: true });
       return true;
     }
     if (target.closest("[data-continue-flight]")) {
@@ -2299,460 +1341,74 @@ function initAirplaneShooter() {
     return false;
   }
 
-  panel.addEventListener("click", (event) => {
-    if (Date.now() - lastPointerCommandAt > 450) {
-      if (runButtonCommand(event.target)) event.stopPropagation();
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-  });
-
-  panel.addEventListener("pointerdown", (event) => {
-    if (event.target.closest("input, select")) return;
-
-    if (runButtonCommand(event.target)) {
-      lastPointerCommandAt = Date.now();
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
-
-    const fireButton = event.target.closest("[data-fire]");
-    if (fireButton) {
-      event.preventDefault();
-      fire();
-      return;
-    }
-
-    const holdButton = event.target.closest("[data-hold]");
-    if (!holdButton) return;
-    event.preventDefault();
-    holdButton.setPointerCapture(event.pointerId);
-    holdStart(holdButton.dataset.hold);
-  });
-
-  panel.addEventListener("pointerup", (event) => {
-    const holdButton = event.target.closest("[data-hold]");
-    if (holdButton) holdEnd(holdButton.dataset.hold);
-  });
-
-  panel.addEventListener("pointercancel", (event) => {
-    const holdButton = event.target.closest("[data-hold]");
-    if (holdButton) holdEnd(holdButton.dataset.hold);
-  });
-
-  function preventGameplayTouchMove(event) {
-    if (immersive.isActive()) event.preventDefault();
+  function changeThrottle(direction) {
+    if (state.mode !== "takeoff" && state.mode !== "flying") return;
+    state.throttle = Math.max(0, Math.min(4, state.throttle + direction));
+    updateHud();
   }
 
-  panel.addEventListener("touchmove", preventGameplayTouchMove, { passive: false });
-  window.addEventListener("resize", resizeImmersiveCanvas);
+  function listen(element, type, handler, options) {
+    element.addEventListener(type, handler, { ...options, signal: listeners.signal });
+  }
 
-  currentGame = {
-    stop() {
-      state.mode = "select";
-      input.left = false;
-      input.right = false;
-      state.bankVelocity = 0;
-      panel.removeEventListener("touchmove", preventGameplayTouchMove);
-      window.removeEventListener("resize", resizeImmersiveCanvas);
-      immersive.destroy();
-    }
-  };
-
-  drawPlanePreviews(root);
-  draw();
-  updateHud();
-}
-
-function drawPlanePreviews(root) {
-  root.querySelectorAll("[data-plane-preview]").forEach((preview) => {
-    const ctx = preview.getContext("2d");
-    const planeId = preview.dataset.planePreview;
-    ctx.clearRect(0, 0, preview.width, preview.height);
-    ctx.save();
-    ctx.translate(preview.width / 2, preview.height / 2 + 8);
-    ctx.scale(0.86, 0.86);
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#1f2d3a";
-
-    if (planeId === "biplane") {
-      ctx.save();
-      ctx.scale(0.23, 0.23);
-      ctx.translate(-256, -245);
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = "#000";
-
-      ctx.beginPath();
-      ctx.moveTo(56, 130);
-      ctx.quadraticCurveTo(56, 112, 77, 112);
-      ctx.lineTo(215, 112);
-      ctx.quadraticCurveTo(231, 112, 231, 129);
-      ctx.lineTo(231, 136);
-      ctx.quadraticCurveTo(231, 152, 215, 152);
-      ctx.lineTo(77, 152);
-      ctx.quadraticCurveTo(56, 152, 56, 134);
-      ctx.closePath();
-      ctx.fillStyle = "#f6c21a";
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(281, 129);
-      ctx.quadraticCurveTo(281, 112, 297, 112);
-      ctx.lineTo(435, 112);
-      ctx.quadraticCurveTo(456, 112, 456, 130);
-      ctx.lineTo(456, 134);
-      ctx.quadraticCurveTo(456, 152, 435, 152);
-      ctx.lineTo(297, 152);
-      ctx.quadraticCurveTo(281, 152, 281, 136);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "#f2f2f2";
-      ctx.fillRect(124, 112, 34, 40);
-      ctx.strokeRect(124, 112, 34, 40);
-      ctx.fillRect(354, 112, 34, 40);
-      ctx.strokeRect(354, 112, 34, 40);
-
-      ctx.beginPath();
-      ctx.moveTo(70, 222);
-      ctx.quadraticCurveTo(70, 203, 92, 203);
-      ctx.lineTo(220, 203);
-      ctx.quadraticCurveTo(241, 203, 241, 221);
-      ctx.lineTo(241, 229);
-      ctx.quadraticCurveTo(241, 247, 220, 247);
-      ctx.lineTo(92, 247);
-      ctx.quadraticCurveTo(70, 247, 70, 228);
-      ctx.closePath();
-      ctx.fillStyle = "#f6c21a";
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(271, 221);
-      ctx.quadraticCurveTo(271, 203, 292, 203);
-      ctx.lineTo(420, 203);
-      ctx.quadraticCurveTo(442, 203, 442, 222);
-      ctx.lineTo(442, 228);
-      ctx.quadraticCurveTo(442, 247, 420, 247);
-      ctx.lineTo(292, 247);
-      ctx.quadraticCurveTo(271, 247, 271, 229);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "#f2f2f2";
-      ctx.fillRect(126, 203, 36, 44);
-      ctx.strokeRect(126, 203, 36, 44);
-      ctx.fillRect(350, 203, 36, 44);
-      ctx.strokeRect(350, 203, 36, 44);
-
-      ctx.strokeStyle = "#2f2f2f";
-      ctx.lineWidth = 7;
-      [[104, 152, 122, 203], [134, 152, 122, 203], [408, 152, 390, 203], [378, 152, 390, 203]].forEach(([x1, y1, x2, y2]) => {
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-      });
-
-      ctx.strokeStyle = "#000";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(227, 90);
-      ctx.bezierCurveTo(237, 86, 247, 84, 256, 84);
-      ctx.bezierCurveTo(265, 84, 275, 86, 285, 90);
-      ctx.lineTo(285, 261);
-      ctx.bezierCurveTo(285, 291, 276, 322, 265, 350);
-      ctx.lineTo(259, 367);
-      ctx.quadraticCurveTo(256, 377, 253, 367);
-      ctx.lineTo(247, 350);
-      ctx.bezierCurveTo(236, 322, 227, 291, 227, 261);
-      ctx.closePath();
-      ctx.fillStyle = "#f2331e";
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.ellipse(256, 166, 22, 24, 0, 0, Math.PI * 2);
-      ctx.fillStyle = "#5b95d9";
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(138, 287);
-      ctx.bezierCurveTo(166, 271, 199, 268, 230, 275);
-      ctx.lineTo(238, 322);
-      ctx.bezierCurveTo(203, 327, 167, 327, 139, 323);
-      ctx.bezierCurveTo(123, 321, 121, 297, 138, 287);
-      ctx.closePath();
-      ctx.fillStyle = "#f6c21a";
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(374, 287);
-      ctx.bezierCurveTo(346, 271, 313, 268, 282, 275);
-      ctx.lineTo(274, 322);
-      ctx.bezierCurveTo(309, 327, 345, 327, 373, 323);
-      ctx.bezierCurveTo(389, 321, 391, 297, 374, 287);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    if (planeId === "mustang") {
-      ctx.save();
-      ctx.scale(0.23, 0.23);
-      ctx.translate(-256, -250);
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = "#000";
-
-      ctx.beginPath();
-      ctx.moveTo(38, 196);
-      ctx.quadraticCurveTo(38, 166, 72, 164);
-      ctx.lineTo(210, 154);
-      ctx.quadraticCurveTo(231, 152, 231, 176);
-      ctx.lineTo(231, 258);
-      ctx.quadraticCurveTo(231, 276, 212, 275);
-      ctx.lineTo(74, 252);
-      ctx.quadraticCurveTo(38, 246, 38, 221);
-      ctx.closePath();
-      ctx.fillStyle = "#d9d9dc";
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(474, 196);
-      ctx.quadraticCurveTo(474, 166, 440, 164);
-      ctx.lineTo(302, 154);
-      ctx.quadraticCurveTo(281, 152, 281, 176);
-      ctx.lineTo(281, 258);
-      ctx.quadraticCurveTo(281, 276, 300, 275);
-      ctx.lineTo(438, 252);
-      ctx.quadraticCurveTo(474, 246, 474, 221);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = "#222";
-      ctx.fillRect(154, 155, 32, 118);
-      ctx.fillRect(326, 155, 32, 118);
-      ctx.fillStyle = "#f2f2f2";
-      ctx.fillRect(186, 155, 24, 118);
-      ctx.fillRect(302, 155, 24, 118);
-
-      ctx.beginPath();
-      ctx.moveTo(226, 132);
-      ctx.bezierCurveTo(235, 129, 245, 128, 256, 128);
-      ctx.bezierCurveTo(267, 128, 277, 129, 286, 132);
-      ctx.lineTo(289, 270);
-      ctx.bezierCurveTo(289, 311, 278, 355, 266, 395);
-      ctx.lineTo(261, 413);
-      ctx.quadraticCurveTo(256, 426, 251, 413);
-      ctx.lineTo(246, 395);
-      ctx.bezierCurveTo(234, 355, 223, 311, 223, 270);
-      ctx.closePath();
-      ctx.fillStyle = "#d9d9dc";
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = "#444";
-      ctx.fillRect(223, 268, 66, 28);
-      ctx.fillStyle = "#f2331e";
-      ctx.fillRect(246, 295, 20, 118);
-
-      ctx.beginPath();
-      ctx.moveTo(237, 97);
-      ctx.quadraticCurveTo(256, 64, 275, 97);
-      ctx.lineTo(272, 110);
-      ctx.quadraticCurveTo(256, 105, 240, 110);
-      ctx.closePath();
-      ctx.fillStyle = "#f2331e";
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = "#f1be1a";
-      ctx.fillRect(226, 102, 60, 30);
-      ctx.strokeRect(226, 102, 60, 30);
-      ctx.fillStyle = "#f2331e";
-      ctx.fillRect(226, 102, 15, 15);
-      ctx.fillRect(256, 102, 15, 15);
-      ctx.fillRect(241, 117, 15, 15);
-      ctx.fillRect(271, 117, 15, 15);
-
-      ctx.beginPath();
-      ctx.ellipse(256, 198, 17, 30, 0, 0, Math.PI * 2);
-      ctx.fillStyle = "#4fa9ee";
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(126, 326);
-      ctx.quadraticCurveTo(126, 295, 158, 300);
-      ctx.lineTo(229, 312);
-      ctx.quadraticCurveTo(246, 315, 246, 333);
-      ctx.lineTo(246, 364);
-      ctx.quadraticCurveTo(246, 377, 230, 378);
-      ctx.lineTo(154, 373);
-      ctx.quadraticCurveTo(126, 371, 126, 346);
-      ctx.closePath();
-      ctx.fillStyle = "#d9d9dc";
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(386, 326);
-      ctx.quadraticCurveTo(386, 295, 354, 300);
-      ctx.lineTo(283, 312);
-      ctx.quadraticCurveTo(266, 315, 266, 333);
-      ctx.lineTo(266, 364);
-      ctx.quadraticCurveTo(266, 377, 282, 378);
-      ctx.lineTo(358, 373);
-      ctx.quadraticCurveTo(386, 371, 386, 346);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = "#14379e";
-      ctx.beginPath();
-      ctx.arc(108, 202, 22, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(74, 195, 68, 14);
-      ctx.restore();
-    }
-
-    if (planeId === "jet") {
-      ctx.save();
-      ctx.scale(0.23, 0.23);
-      ctx.translate(-256, -255);
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = "#000";
-
-      ctx.beginPath();
-      ctx.moveTo(48, 230);
-      ctx.quadraticCurveTo(48, 205, 74, 196);
-      ctx.lineTo(216, 160);
-      ctx.quadraticCurveTo(236, 155, 240, 178);
-      ctx.lineTo(248, 250);
-      ctx.quadraticCurveTo(250, 266, 233, 272);
-      ctx.lineTo(95, 311);
-      ctx.quadraticCurveTo(61, 321, 48, 293);
-      ctx.closePath();
-      ctx.fillStyle = "#5b90c8";
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(464, 230);
-      ctx.quadraticCurveTo(464, 205, 438, 196);
-      ctx.lineTo(296, 160);
-      ctx.quadraticCurveTo(276, 155, 272, 178);
-      ctx.lineTo(264, 250);
-      ctx.quadraticCurveTo(262, 266, 279, 272);
-      ctx.lineTo(417, 311);
-      ctx.quadraticCurveTo(451, 321, 464, 293);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.strokeStyle = "#f2c21c";
-      ctx.lineWidth = 7;
-      ctx.beginPath();
-      ctx.moveTo(88, 290);
-      ctx.lineTo(214, 255);
-      ctx.moveTo(424, 290);
-      ctx.lineTo(298, 255);
-      ctx.stroke();
-
-      ctx.strokeStyle = "#000";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(244, 52);
-      ctx.quadraticCurveTo(256, 30, 268, 52);
-      ctx.bezierCurveTo(280, 74, 286, 94, 288, 122);
-      ctx.lineTo(291, 235);
-      ctx.bezierCurveTo(292, 267, 282, 311, 270, 352);
-      ctx.lineTo(264, 372);
-      ctx.quadraticCurveTo(256, 390, 248, 372);
-      ctx.lineTo(242, 352);
-      ctx.bezierCurveTo(230, 311, 220, 267, 221, 235);
-      ctx.lineTo(224, 122);
-      ctx.bezierCurveTo(226, 94, 232, 74, 244, 52);
-      ctx.closePath();
-      ctx.fillStyle = "#5b90c8";
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = "#f2c21c";
-      ctx.fillRect(229, 108, 54, 20);
-      ctx.strokeRect(229, 108, 54, 20);
-
-      ctx.beginPath();
-      ctx.moveTo(238, 88);
-      ctx.quadraticCurveTo(256, 66, 274, 88);
-      ctx.lineTo(278, 150);
-      ctx.quadraticCurveTo(256, 162, 234, 150);
-      ctx.closePath();
-      ctx.fillStyle = "#58aeef";
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(236, 270);
-      ctx.bezierCurveTo(242, 244, 249, 230, 256, 230);
-      ctx.bezierCurveTo(263, 230, 270, 244, 276, 270);
-      ctx.lineTo(286, 357);
-      ctx.quadraticCurveTo(287, 370, 276, 370);
-      ctx.lineTo(236, 370);
-      ctx.quadraticCurveTo(225, 370, 226, 357);
-      ctx.closePath();
-      ctx.fillStyle = "#5b90c8";
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.strokeStyle = "#f2c21c";
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.moveTo(266, 282);
-      ctx.lineTo(252, 305);
-      ctx.lineTo(266, 305);
-      ctx.lineTo(248, 338);
-      ctx.stroke();
-
-      ctx.strokeStyle = "#000";
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(244, 366);
-      ctx.quadraticCurveTo(256, 395, 268, 366);
-      ctx.lineTo(264, 401);
-      ctx.quadraticCurveTo(256, 413, 248, 401);
-      ctx.closePath();
-      ctx.fillStyle = "#ff7b1a";
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = "#14379e";
-      ctx.beginPath();
-      ctx.arc(112, 258, 19, 0, Math.PI * 2);
-      ctx.arc(400, 258, 19, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(83, 252, 58, 12);
-      ctx.fillRect(371, 252, 58, 12);
-      ctx.restore();
-    }
-    ctx.restore();
+  listen(panel, "click", (event) => {
+    if (runButtonCommand(event.target)) event.stopPropagation();
+    else if (event.detail === 0 && event.target.closest("[data-fire]")) fire();
   });
-}
+  listen(panel, "pointerdown", (event) => {
+    if (event.button !== 0 || !AIRBORNE_MODES.includes(state.mode)) return;
+    const button = event.target.closest("[data-fire], [data-hold]");
+    if (!button) return;
+    event.preventDefault();
+    button.setPointerCapture(event.pointerId);
+    const action = button.dataset.hold || "fire";
+    input.pointers.set(event.pointerId, action);
+    if (action === "fire") fire();
+  });
+  for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
+    listen(panel, type, (event) => input.pointers.delete(event.pointerId));
+  }
+  listen(panel, "touchmove", (event) => {
+    if (immersive.isActive() && overlayEl.hidden) event.preventDefault();
+  }, { passive: false });
 
-function previewRoundRect(ctx, x, y, width, height, radius) {
-  ctx.beginPath();
-  ctx.moveTo(x + radius, y);
-  ctx.lineTo(x + width - radius, y);
-  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-  ctx.lineTo(x + width, y + height - radius);
-  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  ctx.lineTo(x + radius, y + height);
-  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-  ctx.lineTo(x, y + radius);
-  ctx.quadraticCurveTo(x, y, x + radius, y);
-  ctx.closePath();
+  listen(window, "keydown", (event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.target.closest?.("input, select, textarea")) return;
+    if ((event.code === "KeyP" || event.code === "Escape") && !event.repeat) {
+      if (state.mode === "paused" && overlayEl.querySelector("[data-close-overlay]")) hideOverlay();
+      else pause();
+      return;
+    }
+    if (!AIRBORNE_MODES.includes(state.mode)) return;
+    if (event.code === "ArrowUp" || event.code === "ArrowDown") {
+      event.preventDefault();
+      if (!event.repeat) changeThrottle(event.code === "ArrowUp" ? 1 : -1);
+    } else if (FLIGHT_KEYS[event.code] && (event.code !== "Space" || !event.target.closest?.("button"))) {
+      event.preventDefault();
+      input.keys.add(event.code);
+      if (event.code === "Space" && !event.repeat) fire();
+    }
+  });
+  listen(window, "keyup", (event) => input.keys.delete(event.code));
+  listen(window, "blur", pause);
+  listen(document, "visibilitychange", () => { if (document.hidden) pause(); });
+  for (const type of ["fullscreenchange", "webkitfullscreenchange"]) {
+    listen(document, type, () => { if (!immersive.isActive()) pause(); });
+  }
+  const observer = new ResizeObserver(resizeImmersiveCanvas);
+  observer.observe(flightDeck);
+
+  for (const preview of root.querySelectorAll("[data-plane-preview]")) {
+    const context = preview.getContext("2d");
+    paintAircraft(context, preview.dataset.planePreview, preview.width / 2, preview.height / 2, 1.15);
+  }
+  updateHud();
+  return () => {
+    disposed = true;
+    state.mode = "select";
+    stopLoop();
+    listeners.abort();
+    observer.disconnect();
+    immersive.destroy();
+  };
 }

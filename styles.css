@@ -576,6 +576,444 @@ select {
   display: block;
 }
 
+.pine-cover {
+  background-color: #284b60;
+  background-image: linear-gradient(90deg, #102b3ca0, transparent 75%), url("./assets/menu/pine-ridge-run.jpg");
+  background-position: 58% center;
+  background-size: cover;
+}
+
+.pine-panel {
+  padding: 0;
+  overflow: hidden;
+  background: #132a37;
+  color: #f6f3ea;
+  border: 1px solid #2c4653;
+  border-radius: 18px;
+}
+
+.pine-cover {
+  position: relative;
+  display: flex;
+  min-height: clamp(250px, 43vw, 382px);
+  padding: clamp(18px, 4vw, 44px);
+  align-items: flex-end;
+}
+
+.pine-back {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  padding: 10px 14px;
+  min-height: 44px;
+  border-radius: 9px;
+  background: #162c39;
+  color: #f6f3ea;
+  cursor: pointer;
+}
+
+.pine-title h2 {
+  margin: 0;
+  color: #fff8e9;
+  font-family: Georgia, serif;
+  font-size: clamp(3.1rem, 8.9vw, 6.1rem);
+  font-weight: 700;
+  line-height: 0.85;
+  letter-spacing: -0.065em;
+  text-shadow: 0 2px 30px #102c3b;
+}
+
+.pine-brief {
+  padding: clamp(20px, 4vw, 36px);
+}
+
+.pine-brief fieldset {
+  margin: 0 0 17px;
+  padding: 0;
+  border: 0;
+}
+
+.pine-brief legend {
+  margin-bottom: 10px;
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.pine-courses {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pine-course {
+  padding: 12px;
+  border: 1px solid #59727b;
+  border-radius: 10px;
+  background: #1b3745;
+  color: #f6f3ea;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pine-course[aria-pressed="true"] {
+  background: #324e56;
+  border-color: #f2b46f;
+  box-shadow: inset 0 -3px #f2b46f;
+}
+
+.pine-course > strong,
+.pine-course > span {
+  display: block;
+}
+
+.pine-course > span,
+.pine-help {
+  color: #bed3d6;
+  font-size: 0.83rem;
+}
+
+.pine-help {
+  margin: 12px 0 0;
+}
+
+.pine-launch,
+.pine-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+}
+
+.pine-primary,
+.pine-secondary {
+  min-height: 45px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pine-primary {
+  background: #f4b771;
+  color: #202c36;
+}
+
+.pine-secondary {
+  background: #2d4a58;
+  color: #f6f3ea;
+}
+
+.pine-play {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: min(76vh, 760px);
+  min-height: 260px;
+  overflow: hidden;
+  background: #426e83;
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.pine-play.is-gameplay-immersive {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+}
+
+.pine-play:fullscreen {
+  width: 100%;
+  height: 100%;
+}
+
+.pine-slope {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  touch-action: none;
+}
+
+.pine-hud {
+  position: absolute;
+  z-index: 3;
+  inset: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 7px 8px;
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 0 max(10px, env(safe-area-inset-left));
+  pointer-events: none;
+}
+
+.pine-stats,
+.pine-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.pine-stats > span,
+.pine-actions button,
+.pine-progress {
+  border-radius: 8px;
+  background: #142d3ae8;
+  color: #fcf6e7;
+}
+
+.pine-stats > span {
+  display: grid;
+  align-content: center;
+  min-width: 57px;
+  min-height: 45px;
+  padding: 4px 9px;
+  font-size: clamp(0.78rem, 2.2vw, 1.03rem);
+  line-height: 1.12;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pine-stats small {
+  margin-bottom: 2px;
+  color: #bcd3d9;
+  font-size: 0.65rem;
+}
+
+.pine-actions button {
+  min-height: 45px;
+  min-width: 44px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  font-weight: 750;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.pine-progress {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: min(100%, 390px);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px;
+  font-size: 0.73rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pine-progress progress {
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #507482;
+  accent-color: #f4b771;
+}
+
+.pine-progress progress::-webkit-progress-bar { background: #507482; }
+.pine-progress progress::-webkit-progress-value { background: #f4b771; }
+.pine-progress progress::-moz-progress-bar { background: #f4b771; }
+
+.pine-callout {
+  position: absolute;
+  z-index: 2;
+  top: 27%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 90%;
+  padding: 6px 13px;
+  border-radius: 8px;
+  background: #173746ed;
+  color: #fff5da;
+  font-weight: 850;
+  font-size: clamp(0.86rem, 3vw, 1.28rem);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.pine-callout.is-countdown {
+  top: 48%;
+  padding: 12px 25px;
+  border: 1px solid #f4b771;
+  font-family: Georgia, serif;
+  font-size: clamp(3rem, 12vh, 6rem);
+  line-height: 1;
+}
+
+.pine-drive {
+  position: absolute;
+  z-index: 1;
+  inset: auto max(12px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.pine-drive button {
+  min-width: clamp(71px, 11vw, 104px);
+  min-height: clamp(52px, 8vh, 65px);
+  border-radius: 12px;
+  padding: 8px 14px;
+  background: #143544;
+  color: #fff7e8;
+  font-weight: 850;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.pine-drive .pine-jump {
+  background: #f4b771;
+  color: #202c36;
+}
+
+.pine-drive button:active,
+.pine-drive button.is-held {
+  transform: translateY(2px);
+  box-shadow: inset 0 0 0 2px #eabe86;
+}
+
+.pine-air {
+  position: absolute;
+  z-index: 2;
+  bottom: calc(max(14px, env(safe-area-inset-bottom)) + clamp(59px, 9vh, 75px));
+  left: 50%;
+  width: min(350px, calc(100% - 24px));
+  transform: translateX(-50%);
+  border-radius: 11px;
+  padding: 7px;
+  background: #142d3af2;
+  color: #fcf6e7;
+}
+
+.pine-air-status {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 1px 4px 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.pine-air-status progress {
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #507482;
+  accent-color: #f4b771;
+}
+
+.pine-air-status progress::-webkit-progress-bar { background: #507482; }
+.pine-air-status progress::-webkit-progress-value { background: #f4b771; }
+.pine-air-status progress::-moz-progress-bar { background: #f4b771; }
+
+.pine-tricks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.pine-tricks button {
+  display: grid;
+  place-content: center;
+  min-height: 47px;
+  padding: 4px 2px;
+  border: 1px solid #729597;
+  border-radius: 7px;
+  background: #315661;
+  color: #fffaef;
+  cursor: pointer;
+  touch-action: none;
+  font-size: clamp(0.73rem, 2.2vw, 0.87rem);
+}
+
+.pine-tricks small {
+  color: #d1e8e8;
+  font-size: 0.68rem;
+}
+
+.pine-tricks .is-risky {
+  background: #693d3a;
+  border-color: #d58e75;
+}
+
+.pine-tricks .is-risky small {
+  color: #ffddc8;
+}
+
+.pine-tricks button:disabled {
+  opacity: 0.53;
+  cursor: default;
+}
+
+.pine-tricks button.is-selected {
+  opacity: 1;
+  border-color: #f4b771;
+  box-shadow: inset 0 -2px #f4b771;
+}
+
+@media (min-width: 660px) {
+  .pine-air {
+    bottom: max(14px, env(safe-area-inset-bottom));
+  }
+}
+
+.pine-actions button:disabled,
+.pine-drive button:disabled {
+  visibility: hidden;
+}
+
+.pine-overlay {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #122b39a6;
+  padding: 14px;
+}
+
+.pine-dialog {
+  width: min(390px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: clamp(16px, 4vw, 28px);
+  border: 1px solid #759099;
+  border-radius: 14px;
+  background: #132e3b;
+  color: #f7f2e5;
+  text-align: center;
+}
+
+.pine-dialog h3 {
+  margin-bottom: 7px;
+  font-family: Georgia, serif;
+  font-size: clamp(1.4rem, 6vw, 2.5rem);
+}
+
+.pine-result-actions {
+  justify-content: center;
+}
+
+@media (max-width: 480px) {
+  .pine-courses { grid-template-columns: 1fr; }
+  .pine-course { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .pine-stats > span { min-width: 0; padding-inline: 6px; }
+  .pine-actions button { padding-inline: 7px; }
+}
+
 .game-header {
   display: grid;
   gap: 12px;
@@ -952,6 +1390,331 @@ select {
 
 .air-game {
   position: relative;
+}
+
+.air-panel {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #314b5b;
+  border-radius: 16px;
+  background: #142d3c;
+  color: #f8f3e4;
+}
+
+.air-panel .air-hangar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  min-height: clamp(200px, 35vw, 326px);
+  margin: 0;
+  padding: clamp(14px, 3.4vw, 34px);
+  background:
+    linear-gradient(90deg, #0d263ce8, #15364c69 56%, #17334630),
+    linear-gradient(0deg, #142d3c, #142d3c00 63%),
+    url("./assets/menu/airplane-shooter.jpg") 73% 48% / cover;
+}
+
+.air-hangar-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 7px;
+}
+
+.air-panel .air-hangar-nav button {
+  min-height: 44px;
+  padding: 7px 13px;
+  border: 1px solid #85a6b685;
+  background: #143648db;
+  color: #faf1d9;
+}
+
+.air-panel .air-hangar h2 {
+  margin: 24px 0 6px;
+  color: #fff1d3;
+  font-family: Georgia, serif;
+  font-size: clamp(2.65rem, 7vw, 5rem);
+  letter-spacing: -0.065em;
+  line-height: 0.97;
+  text-shadow: 0 2px 21px #132f42;
+}
+
+.air-panel .air-hangar .intro {
+  margin: 0;
+  color: #dae9e9;
+  font-size: clamp(0.88rem, 2.4vw, 1.07rem);
+}
+
+.air-panel .plane-select {
+  gap: 12px;
+  padding: clamp(15px, 3vw, 29px);
+}
+
+.air-panel .plane-select h3,
+.air-controls-note {
+  margin: 0;
+}
+
+.air-panel .plane-choice {
+  min-height: 114px;
+  border: 1px solid #5f8190;
+  border-radius: 10px;
+  background: #203c4b;
+  color: #f7f2e9;
+}
+
+.air-panel .plane-choice.is-selected {
+  border-color: #efb575;
+  box-shadow: inset 0 -3px #efb575;
+  background: #344e58;
+}
+
+.air-panel .plane-choice span,
+.air-panel .stage-picker,
+.air-controls-note {
+  color: #bed3da;
+}
+
+.air-panel .plane-select .primary-button {
+  justify-self: start;
+  padding-inline: 24px;
+  border: 1px solid #f1b574;
+  background: #f1b574;
+  color: #263545;
+}
+
+.air-controls-note {
+  font-size: 0.86rem;
+}
+
+.air-panel .air-game.is-gameplay-immersive {
+  padding: 0;
+  background: #142d3c;
+}
+
+.air-panel .air-game.is-gameplay-immersive .canvas-wrap,
+.air-panel .flight-canvas {
+  border: 0;
+  border-radius: 0;
+  outline: none;
+}
+
+.air-hud {
+  position: absolute;
+  z-index: 22;
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.air-hud-stats,
+.air-hud-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.air-hud-stats > span,
+.air-flight-button,
+.air-route {
+  border-radius: 8px;
+  background: #152e3eeb;
+  color: #fff4da;
+}
+
+.air-hud-stats > span {
+  display: grid;
+  align-content: center;
+  min-height: 44px;
+  padding: 4px 8px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.air-hud-stats small {
+  color: #b9d4db;
+  font-size: 0.66rem;
+}
+
+.air-hud-stats strong {
+  font-size: clamp(0.77rem, 2.3vw, 1rem);
+}
+
+.air-flight-button {
+  min-width: 44px;
+  min-height: 44px;
+  padding-inline: 9px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.air-flight-button:disabled {
+  visibility: hidden;
+}
+
+.air-route {
+  grid-column: 1 / -1;
+  justify-self: center;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  width: min(100%, 375px);
+  padding: 5px 9px;
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+
+.air-route progress,
+.air-heat progress {
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #496876;
+  accent-color: #f1b574;
+}
+
+.air-route progress::-webkit-progress-bar,
+.air-heat progress::-webkit-progress-bar { background: #496876; }
+.air-route progress::-webkit-progress-value,
+.air-heat progress::-webkit-progress-value { background: #f1b574; }
+.air-route progress::-moz-progress-bar,
+.air-heat progress::-moz-progress-bar { background: #f1b574; }
+
+.air-panel .flight-controls {
+  inset: auto max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+}
+
+.air-panel .control-pad {
+  gap: 5px;
+}
+
+.air-panel .control-button {
+  border: 1px solid #627f8c;
+  border-radius: 9px;
+  background: #183547ed;
+  color: #fff2db;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.air-panel .left-pad .control-button {
+  min-height: clamp(51px, 10vw, 72px);
+  font-size: 1.65rem;
+}
+
+.air-panel .left-pad .control-button::before,
+.air-panel .left-pad .control-button::after,
+.air-panel .fire-control::before {
+  content: none;
+}
+
+.air-panel .control-button:active {
+  background: #345967;
+  border-color: #f1b574;
+}
+
+.air-panel .throttle-stick {
+  grid-column: 2;
+  min-width: 0;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 9px;
+  border: 1px solid #627f8c;
+  box-shadow: none;
+  background: #142e40;
+}
+
+.air-panel .throttle-stick span {
+  min-height: 10px;
+}
+
+.air-fire {
+  grid-column: 1 / -1;
+  align-self: end;
+  display: grid;
+  gap: 3px;
+}
+
+.air-panel .fire-control {
+  grid-column: 1;
+  min-height: 50px;
+  border: 1px solid #ffe0a0;
+  background: #f1b574;
+  color: #242e3b;
+  font-size: 0.87rem;
+}
+
+.air-panel .fire-control.is-firing {
+  background: #ffdba0;
+}
+
+.air-panel .fire-control.is-hot {
+  border-color: #e0a18f;
+  background: #763d3b;
+  color: #fff0dc;
+}
+
+.air-heat {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: #152e3eeb;
+  color: #fff4da;
+  font-size: 0.69rem;
+}
+
+.air-panel .air-game[data-layout="landscape"] .game-message {
+  top: max(88px, calc(env(safe-area-inset-top) + 80px));
+  width: min(68%, 360px);
+  padding: 6px 9px;
+  border: 1px solid #95acb473;
+  background: #142e3eed;
+  color: #fff1d4;
+  font-size: clamp(0.75rem, 2vw, 0.92rem);
+}
+
+.air-panel .game-message span {
+  color: #d1e4e9;
+}
+
+.air-panel .game-overlay {
+  background: #10283799;
+}
+
+.air-panel .is-flight-overlay {
+  padding-block: clamp(20px, 9vh, 68px);
+}
+
+.air-panel .overlay-card {
+  max-height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 540px) {
+  .air-panel .air-game[data-layout="landscape"] .right-pad {
+    width: min(39%, 140px);
+    grid-template-columns: minmax(0, 1fr) 26px;
+  }
+  .air-panel .air-game[data-layout="landscape"] .left-pad {
+    width: min(39%, 140px);
+  }
+  .air-hud-stats > span { padding-inline: 6px; }
+  .air-hud-actions { gap: 3px; }
 }
 
 .overlay-card {

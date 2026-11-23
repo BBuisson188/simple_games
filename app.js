@@ -1,12 +1,14 @@
 import { renderMadLibs } from "./games/mad-libs.js";
-import { renderAirplaneShooter } from "./games/airplane-shooter.js";
+import { mountAirplaneShooter, renderAirplaneShooter } from "./games/airplane-shooter.js";
 import { renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
 import { renderChompChase } from "./games/chomp_chase_game.js";
+import { mountPineRidgeRun, renderPineRidgeRun } from "./games/pine-ridge-run.js";
 
-const APP_VERSION = "v67";
+const APP_VERSION = "v72";
 const ACTIVE_GAME_KEY = "miniGames.activeGame";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
+let disposeScreen;
 
 const games = [
   {
@@ -21,7 +23,8 @@ const games = [
     title: "Airplane Shooter",
     subtitle: "Runway takeoff arcade",
     graphic: "./assets/menu/airplane-shooter.jpg",
-    render: renderAirplaneShooter
+    render: renderAirplaneShooter,
+    mount: mountAirplaneShooter
   },
   {
     id: "starfighter-arena",
@@ -36,10 +39,20 @@ const games = [
     subtitle: "Maze chase arcade",
     graphic: "./assets/menu/chomp-chase.jpg",
     render: renderChompChase
+  },
+  {
+    id: "pine-ridge-run",
+    title: "Pine Ridge Run",
+    subtitle: "Downhill skiing · 3 trails",
+    graphic: "./assets/menu/pine-ridge-run.jpg",
+    render: renderPineRidgeRun,
+    mount: mountPineRidgeRun
   }
 ];
 
 function setScreen(html) {
+  disposeScreen?.();
+  disposeScreen = undefined;
   document.body.classList.remove("gameplay-scroll-lock", "cc-chomp-scroll-lock");
   document.body.style.removeProperty("--gameplay-scroll-offset");
   document.body.style.removeProperty("--cc-scroll-offset");
@@ -87,6 +100,7 @@ function openGame(gameId) {
     // Session storage can be unavailable in private browsing.
   }
   setScreen(game.render());
+  disposeScreen = game.mount?.(app.firstElementChild);
 }
 
 function updateOfflineStatus() {
