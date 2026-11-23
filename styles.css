@@ -2274,6 +2274,16 @@ select {
   border-radius: 16px;
 }
 
+.arcade-offline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .65rem;
+  margin: .5rem 0 1.1rem;
+}
+
+.arcade-offline button { min-height: 44px; }
+
 .sf3-cover {
   display: grid;
   align-content: space-between;
@@ -2283,7 +2293,7 @@ select {
   border-radius: 15px 15px 0 0;
   background:
     linear-gradient(0deg, #0a1527, #0a152730 62%),
-    url("./design/starfighter-3d/kestrel-chase.jpg") center 53% / cover;
+    url("./assets/menu/starfighter-3d.jpg") center 53% / cover;
 }
 
 .sf3-cover h2 {
@@ -2321,6 +2331,15 @@ select {
   align-items: center;
   gap: 7px;
 }
+
+.sf3-difficulty {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 720;
+}
+
+.sf3-intro [data-sf3-difficulty-help] { margin: 9px 0 0; }
 
 .sf3-button {
   min-height: 44px;
@@ -2404,6 +2423,14 @@ select {
   pointer-events: auto;
 }
 
+.sf3-flight:is(.is-hyperspace, .is-cinematic) :is(.sf3-readouts, .sf3-reticle, .sf3-touch) {
+  visibility: hidden;
+}
+
+.sf3-flight.is-exposed [data-sf3-shield] {
+  color: #ff9c87;
+}
+
 .sf3-readouts span {
   display: grid;
   gap: 1px;
@@ -2449,6 +2476,27 @@ select {
   background: #481e29ed;
 }
 
+.sf3-lock-banner {
+  position: absolute;
+  z-index: 1;
+  top: max(105px, calc(env(safe-area-inset-top) + 96px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 30px);
+  padding: 5px 10px;
+  border: 1px solid #66daba7a;
+  border-radius: 8px;
+  background: #10253aec;
+  color: #bbf8eb;
+  font-size: clamp(0.76rem, 2vw, 0.94rem);
+  text-align: center;
+  pointer-events: none;
+}
+
+.sf3-lock-banner.is-locked { border-color: #8cffe3; box-shadow: 0 0 16px #9bffe646; }
+.sf3-lock-banner progress { display: block; width: 100%; height: 6px; margin-top: 3px; accent-color: #8cffe3; }
+
 .sf3-flight.is-hit::after {
   position: absolute;
   z-index: 1;
@@ -2466,6 +2514,9 @@ select {
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
+
+.sf3-target.is-port { color: #9affe5; }
+.sf3-edge.is-port { background: #9affe5; }
 
 .sf3-reticle {
   width: 27px;
@@ -2567,6 +2618,13 @@ select {
   pointer-events: none;
 }
 
+/* Use the short side to keep even wide phones on the original control size. */
+@media (any-pointer: coarse) and (min-width: 700px) and (min-height: 650px) {
+  .sf3-stick {
+    width: clamp(166px, 25vmin, 208px);
+  }
+}
+
 .sf3-thumbs {
   display: flex;
   align-items: end;
@@ -2583,6 +2641,12 @@ select {
 .sf3-thumbs .sf3-primary {
   min-width: 83px;
   min-height: 67px;
+}
+
+.sf3-thumbs .sf3-torpedo {
+  border-color: #7cf2d3;
+  background: #234847f5;
+  color: #ddfff4;
 }
 
 .sf3-overlay {
@@ -2610,4 +2674,6 @@ select {
   .sf3-hud { gap: 4px; }
   .sf3-hud-actions { gap: 4px; }
   .sf3-hud-actions .sf3-button { padding-inline: 7px; font-size: 0.79rem; }
+  .sf3-thumbs { gap: 5px; }
+  .sf3-thumbs .sf3-button { min-width: 52px; padding-inline: 7px; }
 }

@@ -1,5 +1,4 @@
-const CACHE_NAME = "mini-games-v74";
-const FLIGHT_CACHE = "mini-games-starfighter-3d-v2";
+const CACHE_NAME = "mini-games-v89";
 const flightPaths = ["./games/starfighter-3d/", "./assets/starfighter-3d/"]
   .map((path) => new URL(path, self.registration.scope).pathname);
 
@@ -8,6 +7,7 @@ const APP_ASSETS = [
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./offline.js",
   "./manifest.json",
   "./reset.html",
   "./games/airplane-aircraft.js",
@@ -22,7 +22,7 @@ const APP_ASSETS = [
   "./games/pine-ridge-view.js",
   "./games/starfighter-3d-entry.js",
   "./games/starfighter-sinistar.js",
-  "./design/starfighter-3d/kestrel-chase.jpg",
+  "./assets/menu/starfighter-3d.jpg",
   "./assets/icons/app-icon-180.png",
   "./assets/icons/app-icon-192.png",
   "./assets/icons/app-icon-512.png",
@@ -32,23 +32,18 @@ const APP_ASSETS = [
   "./assets/menu/airplane-shooter.jpg",
   "./assets/menu/chomp-chase.jpg",
   "./assets/menu/starfighter.jpg",
-  "./assets/menu/pine-ridge-run.jpg"
+  "./assets/menu/pine-ridge-run.jpg",
+  ...[
+    "flight.js", "scene.js", "controls.js", "patrol.js", "carrier.js", "carrier-view.js", "craft-geometry.js",
+    "fighter-view.js", "jump-view.js", "rebel-view.js", "level-view.js", "aftermath.js", "fighter-wreck.js", "trench.js",
+    "vendor/three.module.js", "vendor/three.core.js", "vendor/loaders/GLTFLoader.js",
+    "vendor/utils/BufferGeometryUtils.js", "vendor/utils/SkeletonUtils.js"
+  ].map((name) => `./games/starfighter-3d/${name}`),
+  "./assets/starfighter-3d/kestrel.glb"
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => Promise.all(
-        APP_ASSETS.map((asset) => (
-          fetch(asset, { cache: "reload" })
-            .then((response) => {
-              if (!response.ok) throw new Error(`Failed to cache ${asset}`);
-              return cache.put(asset, response);
-            })
-        ))
-      ))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener("activate", (event) => {
@@ -56,11 +51,39 @@ self.addEventListener("activate", (event) => {
     caches.keys()
       .then((keys) => Promise.all(
         keys
-          .filter((key) => key.startsWith("mini-games-") && key !== CACHE_NAME && key !== FLIGHT_CACHE)
+          .filter((key) => key.startsWith("mini-games-") && key !== CACHE_NAME)
           .map((key) => caches.delete(key))
       ))
       .then(() => self.clients.claim())
   );
+});
+
+const offlineURLs = APP_ASSETS.map((path) => new URL(path, self.registration.scope).href);
+let preparing;
+self.addEventListener("message", (event) => {
+  const { type } = event.data || {};
+  const reply = event.ports[0];
+  if (!reply || !["arcade-offline-state", "prepare-arcade"].includes(type)) return;
+  event.waitUntil((async () => {
+    try {
+      if (type === "arcade-offline-state" && !(await caches.has(CACHE_NAME))) {
+        reply.postMessage({ ready: false });
+        return;
+      }
+      const cache = await caches.open(CACHE_NAME);
+      const saved = await Promise.all(offlineURLs.map((url) => cache.match(url)));
+      const ready = saved.every(Boolean);
+      if (type === "prepare-arcade" && !ready) {
+        // addAll commits the complete package or leaves the cache unchanged on failure.
+        preparing ??= cache.addAll(offlineURLs.map((url) => new Request(url, { cache: "reload" })))
+          .finally(() => { preparing = undefined; });
+        await preparing;
+      }
+      reply.postMessage({ ready: type === "prepare-arcade" || ready });
+    } catch {
+      reply.postMessage({ error: "Could not save the arcade. Check your connection and available storage, then try again." });
+    }
+  })());
 });
 
 self.addEventListener("fetch", (event) => {
@@ -68,27 +91,23 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
-  // The flight pack is downloaded on demand. Keep its versioned files together.
   if (flightPaths.some((path) => url.pathname.startsWith(path))) {
-    // Explicit pack downloads must not pull stale files from an older worker.
-    if (event.request.cache === "reload") return;
+    if (event.request.cache === "reload") {
+      event.respondWith(fetch(event.request).catch(async () => await caches.match(event.request, { cacheName: CACHE_NAME }) || Response.error()));
+      return;
+    }
     event.respondWith(
-      caches.open(FLIGHT_CACHE)
-        .then((cache) => cache.match(event.request))
-        .catch(() => undefined)
-        .then((saved) => saved || fetch(event.request))
+      caches.match(event.request, { cacheName: CACHE_NAME }).then((saved) => saved || fetch(event.request))
     );
     return;
   }
 
-  event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
-        const responseCopy = networkResponse.clone();
-        caches.open(CACHE_NAME)
-          .then((cache) => cache.put(event.request, responseCopy));
-        return networkResponse;
-      })
-      .catch(() => caches.match(event.request))
-  );
+  event.respondWith(fetch(event.request).catch(async () => {
+    const saved = await caches.match(event.request, { cacheName: CACHE_NAME });
+    if (saved) return saved;
+    if (event.request.mode === "navigate" && url.pathname === new URL(self.registration.scope).pathname) {
+      return await caches.match(self.registration.scope, { cacheName: CACHE_NAME }) || Response.error();
+    }
+    return Response.error();
+  }));
 });

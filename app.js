@@ -4,12 +4,42 @@ import { renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
 import { renderChompChase } from "./games/chomp_chase_game.js";
 import { mountPineRidgeRun, renderPineRidgeRun } from "./games/pine-ridge-run.js";
 import { mountStarfighter3D, renderStarfighter3D } from "./games/starfighter-3d-entry.js";
+import { askOfflineWorker } from "./offline.js";
 
-const APP_VERSION = "v74";
+const APP_VERSION = "v89";
 const ACTIVE_GAME_KEY = "miniGames.activeGame";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
 let disposeScreen;
+let savedOffline = false;
+let savingOffline = false;
+let offlineError = "";
+
+function paintOfflineButton() {
+  const button = app.querySelector("[data-prepare-offline]");
+  const status = app.querySelector("[data-package-status]");
+  if (!button || !status) return;
+  const supported = Boolean(navigator.serviceWorker?.controller);
+  button.disabled = savingOffline || savedOffline || !navigator.onLine || !supported;
+  status.textContent = savingOffline ? "Saving all games…" : savedOffline ? "Ready for offline use"
+    : offlineError || (!navigator.onLine ? "Go online to prepare offline use" : "Not ready for offline use");
+}
+
+async function checkOfflinePackage() {
+  try { savedOffline = await askOfflineWorker("arcade-offline-state"); }
+  catch { savedOffline = false; }
+  paintOfflineButton();
+}
+
+async function prepareOffline() {
+  if (savingOffline || savedOffline) return;
+  savingOffline = true;
+  offlineError = "";
+  paintOfflineButton();
+  try { savedOffline = await askOfflineWorker("prepare-arcade"); }
+  catch (error) { offlineError = error.message; }
+  finally { savingOffline = false; paintOfflineButton(); }
+}
 
 const games = [
   {
@@ -37,8 +67,8 @@ const games = [
   {
     id: "starfighter-3d",
     title: "Starfighter 3D",
-    subtitle: "Kestrel asteroid patrol",
-    graphic: "./design/starfighter-3d/kestrel-chase.jpg",
+    subtitle: "Asteroid patrol",
+    graphic: "./assets/menu/starfighter-3d.jpg",
     render: renderStarfighter3D,
     mount: mountStarfighter3D
   },
@@ -89,10 +119,16 @@ function renderMenu() {
   setScreen(`
     <section class="panel">
       <h2>Pick a game</h2>
-      <p class="intro">Choose a mini-game. Once this page has loaded online, it can keep working offline from your Home Screen.</p>
+      <p class="intro">Choose a mini-game, or save the whole arcade for offline play. Online leaderboards still need a connection.</p>
+      <div class="arcade-offline">
+        <button type="button" data-prepare-offline disabled>Prepare offline</button>
+        <span role="status" data-package-status>Not ready for offline use</span>
+      </div>
       <div class="menu-grid">${buttons}</div>
     </section>
   `);
+  paintOfflineButton();
+  void checkOfflinePackage();
 }
 
 function openGame(gameId) {
@@ -117,6 +153,10 @@ function updateOfflineStatus() {
 }
 
 app.addEventListener("click", (event) => {
+  if (event.target.closest("[data-prepare-offline]")) {
+    void prepareOffline();
+    return;
+  }
   const gameButton = event.target.closest(".menu-button[data-game]");
   const menuButton = event.target.closest("[data-menu]");
 
@@ -151,6 +191,9 @@ if ("serviceWorker" in navigator) {
 
 window.addEventListener("online", updateOfflineStatus);
 window.addEventListener("offline", updateOfflineStatus);
+window.addEventListener("online", checkOfflinePackage);
+window.addEventListener("offline", checkOfflinePackage);
+navigator.serviceWorker?.addEventListener("controllerchange", checkOfflinePackage);
 
 updateOfflineStatus();
 

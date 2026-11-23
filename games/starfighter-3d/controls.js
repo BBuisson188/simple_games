@@ -1,5 +1,5 @@
 const FLIGHT_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown",
-  "KeyA", "KeyD", "KeyW", "KeyS", "KeyQ", "KeyE", "Space", "ShiftLeft", "ShiftRight"]);
+  "KeyA", "KeyD", "KeyW", "KeyS", "KeyQ", "KeyE", "KeyT", "Space", "ShiftLeft", "ShiftRight"]);
 
 export function createFlightControls(surface, signal, onPause) {
   const keys = new Set();
@@ -8,6 +8,7 @@ export function createFlightControls(surface, signal, onPause) {
   const knob = pad.firstElementChild;
   const stick = { id: null, x: 0, y: 0 };
   let pulseQueued = false;
+  let torpedoQueued = false;
   const listen = (target, name, handler) => target.addEventListener(name, handler, { signal });
   const clamp = (value) => Math.max(-1, Math.min(1, value));
 
@@ -21,8 +22,11 @@ export function createFlightControls(surface, signal, onPause) {
     keys.clear();
     heldButtons.clear();
     pulseQueued = false;
+    torpedoQueued = false;
     centerStick();
   }
+
+  listen(surface.querySelector("[data-sf3-torpedo]"), "click", () => { torpedoQueued = true; });
 
   function moveStick(event) {
     if (stick.id !== event.pointerId) return;
@@ -68,6 +72,7 @@ export function createFlightControls(surface, signal, onPause) {
       event.preventDefault();
       keys.add(event.code);
       if (event.code === "Space" && !event.repeat) pulseQueued = true;
+      if (event.code === "KeyT" && !event.repeat) torpedoQueued = true;
     }
   });
   listen(window, "keyup", (event) => keys.delete(event.code));
@@ -76,12 +81,15 @@ export function createFlightControls(surface, signal, onPause) {
     const has = (...codes) => codes.some((code) => keys.has(code));
     const presses = [...heldButtons.values()];
     const fire = pulseQueued || has("Space") || presses.includes("fire");
+    const torpedo = torpedoQueued;
     pulseQueued = false;
+    torpedoQueued = false;
     return {
       yaw: clamp(stick.x + Number(has("ArrowRight", "KeyD")) - Number(has("ArrowLeft", "KeyA"))),
       pitch: clamp(-stick.y + Number(has("ArrowUp", "KeyW")) - Number(has("ArrowDown", "KeyS"))),
       roll: Number(has("KeyQ")) - Number(has("KeyE")),
       fire,
+      torpedo,
       boost: has("ShiftLeft", "ShiftRight") || presses.includes("boost")
     };
   }

@@ -1,7 +1,14 @@
 import * as THREE from "three";
 import { GLTFLoader } from "./vendor/loaders/GLTFLoader.js";
 import { mergeVertices } from "./vendor/utils/BufferGeometryUtils.js";
-import { CHARGE_TIME } from "./patrol.js";
+import { CHARGE_TIME, FIGHTER_POOL, FLEET_FIGHTER_POOL } from "./patrol.js";
+import { createCarrierView } from "./carrier-view.js";
+import { createFighterFleet } from "./fighter-view.js";
+import { createFighterJumps } from "./jump-view.js";
+import { createRebelFighter } from "./rebel-view.js";
+import { createFleetBattle, createShipBreakup, createVerdantPlanet } from "./level-view.js";
+import { createTrench } from "./trench.js";
+import { createFighterWreck } from "./fighter-wreck.js";
 
 const MODEL = new URL("../../assets/starfighter-3d/kestrel.glb", import.meta.url).href;
 
@@ -153,42 +160,6 @@ function createRocks(scene) {
   return { rocks, draw };
 }
 
-function createDrone(scene, index, texture) {
-  const drone = new THREE.Group();
-  const dark = new THREE.MeshStandardMaterial({ color: "#374555", roughness: 0.41, metalness: 0.28 });
-  const amber = new THREE.MeshStandardMaterial({ color: index === 1 ? "#cb5348" : "#d99542", roughness: 0.42, metalness: 0.24 });
-  const signal = new THREE.MeshBasicMaterial({ color: "#ffab63", toneMapped: false });
-  const core = new THREE.Mesh(new THREE.CylinderGeometry(1.05, 1.6, 4.4, 6), dark);
-  core.rotation.x = -Math.PI / 2;
-  drone.add(core);
-  const canopy = new THREE.Mesh(new THREE.SphereGeometry(1.02, 12, 6), signal);
-  canopy.scale.set(0.84, 0.34, 0.56);
-  canopy.position.set(0, 0.2, -2.24);
-  drone.add(canopy);
-  for (const side of [-1, 1]) {
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(3.45, 0.58, 1.75), amber);
-    wing.rotation.y = side * 0.63;
-    wing.rotation.z = side * (index === 1 ? 0.42 : 0.18);
-    wing.position.set(side * 2.15, 0, 0.66);
-    drone.add(wing);
-    const engine = new THREE.Mesh(new THREE.CylinderGeometry(0.49, 0.65, 2.0, 9), dark);
-    engine.position.set(side * 2.67, 0.02, 1.28);
-    engine.rotation.x = Math.PI / 2;
-    const lights = new THREE.Mesh(new THREE.SphereGeometry(0.44, 12, 7), signal);
-    lights.position.set(side * 2.67, 0, 2.33);
-    drone.add(engine, lights);
-  }
-  const charge = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: texture, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false
-  }));
-  charge.position.z = -2.65;
-  charge.visible = false;
-  drone.add(charge);
-  drone.userData.charge = charge;
-  scene.add(drone);
-  return drone;
-}
-
 function glowTexture() {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = 64;
@@ -226,11 +197,14 @@ export function disposeFlightMaterials(scene) {
   }
 }
 
-export async function loadKestrel() {
-  return (await new GLTFLoader().loadAsync(MODEL)).scene;
+export async function loadPlayerFighter(variant) {
+  if (variant === "rebel") return createRebelFighter();
+  const fighter = (await new GLTFLoader().loadAsync(MODEL)).scene;
+  fighter.name = "Jedi Fighter";
+  return fighter;
 }
 
-export function createFlightScene(canvas, kestrel) {
+export function createFlightScene(canvas, playerFighter, carrierVariant, tuningRate = 1) {
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: false, antialias: false, powerPreference: "high-performance" });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -240,9 +214,12 @@ export function createFlightScene(canvas, kestrel) {
   scene.fog = new THREE.FogExp2("#0a1122", 0.00065);
   const camera = new THREE.PerspectiveCamera(61, 1, 0.2, 3600);
   const sky = createSky(scene);
-  const belt = createRocks(scene);
+  const fleetBattle = carrierVariant === "longbow";
+  const surfaceRun = carrierVariant === "trench";
+  const belt = fleetBattle || surfaceRun ? { rocks: [], draw() {} } : createRocks(scene);
+  const orbit = fleetBattle || surfaceRun ? null : createVerdantPlanet(scene, renderer);
   const ship = new THREE.Group();
-  ship.add(kestrel);
+  ship.add(playerFighter);
   scene.add(ship);
   const ambient = new THREE.HemisphereLight("#aed2ff", "#51445e", 1.55);
   const key = new THREE.DirectionalLight("#ffe5c2", 2.8);
@@ -252,10 +229,16 @@ export function createFlightScene(canvas, kestrel) {
   scene.add(ambient, key, rim);
 
   const texture = glowTexture();
-  const drones = Array.from({ length: 3 }, (_, index) => createDrone(scene, index, texture));
+  const wreck = createFighterWreck(scene, ship, playerFighter, camera, texture);
+  const battle = fleetBattle ? createFleetBattle(scene, texture, playerFighter) : null;
+  const drones = createFighterFleet(scene, texture, fleetBattle ? FLEET_FIGHTER_POOL : FIGHTER_POOL);
+  const drawFighterJumps = createFighterJumps(scene, drones.length);
+  const trench = surfaceRun ? createTrench(scene, texture, tuningRate) : null;
+  const carrierView = trench ? null : createCarrierView(scene, texture, carrierVariant);
+  if (carrierView) carrierView.breakup = createShipBreakup(carrierView, texture, fleetBattle ? 2 : 3, 5.2);
   const rings = [];
-  for (const name of ["Thruster_L", "Thruster_R"]) {
-    const socket = kestrel.getObjectByName(name);
+  for (const name of ["Thruster_L", "Thruster_R", "Thruster_Trim_L", "Thruster_Trim_R"]) {
+    const socket = playerFighter.getObjectByName(name);
     if (!socket) continue;
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({
       map: texture, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.82, fog: false
@@ -263,7 +246,7 @@ export function createFlightScene(canvas, kestrel) {
     halo.position.z = 0.27;
     halo.scale.setScalar(2.1);
     socket.add(halo);
-    rings.push(halo);
+    rings.push({ halo, scale: socket.userData.glowScale ?? 1 });
   }
   const fireGeometry = new THREE.CylinderGeometry(0.12, 0.23, 7.2, 6);
   const fireMaterial = new THREE.MeshBasicMaterial({ color: "#8bfbff", toneMapped: false });
@@ -279,6 +262,9 @@ export function createFlightScene(canvas, kestrel) {
   const hostileMeshes = makeBoltPool(12,
     new THREE.CylinderGeometry(0.26, 0.48, 9.1, 6),
     new THREE.MeshBasicMaterial({ color: "#ff654a", toneMapped: false, fog: false }));
+  const torpedoMeshes = makeBoltPool(1,
+    new THREE.CylinderGeometry(0.34, 0.74, 9.5, 8),
+    new THREE.MeshBasicMaterial({ color: "#9dffe6", toneMapped: false, fog: false }));
   function drawBolts(meshes, states) {
     for (const [i, mesh] of meshes.entries()) {
       const state = states[i];
@@ -289,12 +275,20 @@ export function createFlightScene(canvas, kestrel) {
       }
     }
   }
-  const sparkData = new Float32Array(24 * 3);
+  const sparkData = new Float32Array(5 * 24 * 3);
+  const sparkColors = new Float32Array(sparkData.length);
   const sparkGeometry = new THREE.BufferGeometry();
   sparkGeometry.setAttribute("position", new THREE.BufferAttribute(sparkData, 3).setUsage(THREE.DynamicDrawUsage));
+  sparkGeometry.setAttribute("color", new THREE.BufferAttribute(sparkColors, 3).setUsage(THREE.DynamicDrawUsage));
   const sparks = new THREE.Points(sparkGeometry, new THREE.PointsMaterial({
-    color: "#ffc56e", size: 1.7, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false
+    vertexColors: true, size: 2.3, transparent: true, opacity: 0.92, blending: THREE.AdditiveBlending, depthWrite: false
   }));
+  sparks.material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace("#include <logdepthbuf_vertex>",
+      "gl_PointSize = min(gl_PointSize, 8.0);\n#include <logdepthbuf_vertex>");
+    shader.fragmentShader = shader.fragmentShader.replace("#include <alphamap_fragment>",
+      "#include <alphamap_fragment>\nvec2 sparkCoord = gl_PointCoord - 0.5;\ndiffuseColor.a *= 1.0 - smoothstep(0.018, 0.245, dot(sparkCoord, sparkCoord));");
+  };
   sparks.frustumCulled = false;
   sparks.visible = false;
   scene.add(sparks);
@@ -309,38 +303,58 @@ export function createFlightScene(canvas, kestrel) {
     camera.updateProjectionMatrix();
   }
 
-  function paint(time, boosting, bolts, hostileBolts, enemies, burst) {
+  function paint(time, boosting, bolts, hostileBolts, torpedo, enemies, bursts, introAge = 2) {
     sky.position.copy(camera.position);
+    orbit?.draw(time, camera);
+    trench?.draw(camera);
+    battle?.hyperspace(introAge, camera);
     belt.draw(time);
-    for (const ring of rings) {
-      ring.scale.setScalar(boosting ? 3.04 + Math.sin(time * 35) * 0.24 : 2.06);
-      ring.material.opacity = boosting ? 1 : 0.74;
+    for (const { halo, scale } of rings) {
+      halo.scale.setScalar(scale * (boosting ? 3.04 + Math.sin(time * 35) * 0.24 : 2.06));
+      halo.material.opacity = boosting ? 1 : 0.74;
     }
     drawBolts(boltMeshes, bolts);
     drawBolts(hostileMeshes, hostileBolts);
+    drawBolts(torpedoMeshes, torpedo ? [torpedo] : []);
+    drawFighterJumps(camera, enemies);
     for (const enemy of enemies) {
-      const charge = enemy.model.userData.charge;
+      const { charge, silhouettes } = enemy.model.userData;
+      for (const [index, fighter] of silhouettes.entries()) fighter.visible = index === enemy.silhouette;
       charge.visible = enemy.charging > 0;
       if (charge.visible) charge.scale.setScalar(4 + 15 * (1 - enemy.charging / CHARGE_TIME));
     }
-    sparks.visible = Boolean(burst);
-    if (burst) {
-      sparks.material.opacity = 1 - burst.age / 0.75;
-      sparks.material.size = 1.12 + burst.age * 2.3;
-      burst.velocity.forEach((velocity, i) => {
-        sparkData[i * 3] = burst.origin.x + velocity.x * burst.age;
-        sparkData[i * 3 + 1] = burst.origin.y + velocity.y * burst.age;
-        sparkData[i * 3 + 2] = burst.origin.z + velocity.z * burst.age;
-      });
+    sparks.visible = bursts.length > 0;
+    if (sparks.visible) {
+      let index = 0;
+      for (const burst of bursts) {
+        const brightness = 1 - burst.age / .75;
+        for (const velocity of burst.velocity) {
+          sparkData[index] = burst.origin.x + velocity.x * burst.age;
+          sparkData[index + 1] = burst.origin.y + velocity.y * burst.age;
+          sparkData[index + 2] = burst.origin.z + velocity.z * burst.age;
+          sparkColors[index] = brightness;
+          sparkColors[index + 1] = .64 * brightness;
+          sparkColors[index + 2] = .26 * brightness;
+          index += 3;
+        }
+      }
+      sparkGeometry.setDrawRange(0, index / 3);
       sparkGeometry.attributes.position.needsUpdate = true;
+      sparkGeometry.attributes.color.needsUpdate = true;
     }
     renderer.render(scene, camera);
   }
 
   function dispose() {
+    orbit?.dispose();
     disposeFlightMaterials(scene);
     renderer.dispose();
+    const gl = renderer.getContext();
+    if (!gl.isContextLost()) {
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    }
   }
 
-  return { camera, drones, ship, rocks: belt.rocks, paint, resize, dispose };
+  return { camera, drones, ship, carrierView, battle, trench, wreck, rocks: belt.rocks, paint, resize, dispose };
 }
