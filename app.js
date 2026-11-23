@@ -3,8 +3,9 @@ import { mountAirplaneShooter, renderAirplaneShooter } from "./games/airplane-sh
 import { renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
 import { renderChompChase } from "./games/chomp_chase_game.js";
 import { mountPineRidgeRun, renderPineRidgeRun } from "./games/pine-ridge-run.js";
+import { mountStarfighter3D, renderStarfighter3D } from "./games/starfighter-3d-entry.js";
 
-const APP_VERSION = "v72";
+const APP_VERSION = "v74";
 const ACTIVE_GAME_KEY = "miniGames.activeGame";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
@@ -32,6 +33,14 @@ const games = [
     subtitle: "Sinistar-style space battle",
     graphic: "./assets/menu/starfighter.jpg",
     render: renderStarfighterSinistar
+  },
+  {
+    id: "starfighter-3d",
+    title: "Starfighter 3D",
+    subtitle: "Kestrel asteroid patrol",
+    graphic: "./design/starfighter-3d/kestrel-chase.jpg",
+    render: renderStarfighter3D,
+    mount: mountStarfighter3D
   },
   {
     id: "chomp-chase",
@@ -118,14 +127,15 @@ app.addEventListener("click", (event) => {
   }
 
   if (menuButton) {
-    if (event.detail !== 0) return;
+    if (event.detail !== 0 && menuButton.dataset.menu !== "click") return;
     event.preventDefault();
     renderMenu();
   }
 });
 
 app.addEventListener("pointerdown", (event) => {
-  if (!event.target.closest("[data-menu]")) return;
+  const menuButton = event.target.closest("[data-menu]");
+  if (!menuButton || menuButton.dataset.menu === "click") return;
   event.preventDefault();
   renderMenu();
 });

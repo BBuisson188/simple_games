@@ -2261,3 +2261,353 @@ select {
     font-size: 0.8rem;
   }
 }
+
+.sf3-panel {
+  --sf3-ink: #edf6ff;
+  --sf3-muted: #a4bed1;
+  --sf3-line: #3d5a72;
+  --sf3-accent: #9fe6ed;
+  padding: 0;
+  background: #111d30;
+  color: var(--sf3-ink);
+  border: 1px solid var(--sf3-line);
+  border-radius: 16px;
+}
+
+.sf3-cover {
+  display: grid;
+  align-content: space-between;
+  justify-items: start;
+  min-height: clamp(235px, 39vw, 390px);
+  padding: clamp(17px, 4vw, 37px);
+  border-radius: 15px 15px 0 0;
+  background:
+    linear-gradient(0deg, #0a1527, #0a152730 62%),
+    url("./design/starfighter-3d/kestrel-chase.jpg") center 53% / cover;
+}
+
+.sf3-cover h2 {
+  margin: 0;
+  font-size: clamp(2.9rem, 9.5vw, 5.8rem);
+  font-weight: 900;
+  letter-spacing: -0.072em;
+  line-height: 0.97;
+  text-shadow: 0 4px 25px #051121;
+}
+
+.sf3-intro {
+  padding: clamp(18px, 4vw, 32px);
+}
+
+.sf3-intro h3 {
+  font-size: 1.34rem;
+}
+
+.sf3-intro p {
+  margin-bottom: 10px;
+}
+
+.sf3-controls-copy,
+.sf3-status {
+  color: var(--sf3-muted);
+  font-size: 0.86rem;
+}
+
+.sf3-start-row,
+.sf3-hud-actions,
+.sf3-readouts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.sf3-button {
+  min-height: 44px;
+  padding: 8px 13px;
+  border: 1px solid #68879ca8;
+  border-radius: 9px;
+  background: #172c45ec;
+  color: var(--sf3-ink);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.sf3-button:active {
+  background: #31566b;
+}
+
+.sf3-button:disabled {
+  opacity: 0.48;
+  cursor: default;
+}
+
+.sf3-primary {
+  border-color: #baf9f6;
+  background: #a0e3ea;
+  color: #102738;
+}
+
+.sf3-primary:active {
+  background: #d4ffff;
+}
+
+.sf3-flight {
+  position: relative;
+  isolation: isolate;
+  height: min(76vh, 760px);
+  min-height: 260px;
+  overflow: hidden;
+  touch-action: none;
+  overscroll-behavior: none;
+  background: #050b18;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.sf3-flight.is-gameplay-immersive {
+  position: fixed;
+  z-index: 11000;
+  inset: 0;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+}
+
+.sf3-flight:fullscreen {
+  width: 100%;
+  height: 100%;
+}
+
+.sf3-space {
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+}
+
+.sf3-hud {
+  position: absolute;
+  z-index: 4;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  left: max(10px, env(safe-area-inset-left));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.sf3-hud-actions {
+  pointer-events: auto;
+}
+
+.sf3-readouts span {
+  display: grid;
+  gap: 1px;
+  min-width: 61px;
+  min-height: 44px;
+  padding: 4px 8px;
+  border: 1px solid #48627a85;
+  border-radius: 8px;
+  background: #101c30e8;
+  color: var(--sf3-muted);
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.sf3-readouts strong {
+  color: var(--sf3-ink);
+  font-size: clamp(0.77rem, 1.8vw, 1.01rem);
+  white-space: nowrap;
+}
+
+.sf3-callout {
+  position: absolute;
+  z-index: 1;
+  top: max(70px, calc(env(safe-area-inset-top) + 61px));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 30px);
+  margin: 0;
+  padding: 6px 13px;
+  border: 1px solid #64849e80;
+  border-radius: 8px;
+  background: #13243ced;
+  color: var(--sf3-ink);
+  font-size: clamp(0.77rem, 2vw, 0.95rem);
+  font-weight: 720;
+  text-align: center;
+  pointer-events: none;
+}
+
+.sf3-callout.is-threat {
+  color: #ffd7b8;
+  border-color: #e6765fb3;
+  background: #481e29ed;
+}
+
+.sf3-flight.is-hit::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  box-shadow: inset 0 0 34px 7px #ff463d99;
+}
+
+.sf3-reticle,
+.sf3-target,
+.sf3-edge {
+  position: absolute;
+  z-index: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.sf3-reticle {
+  width: 27px;
+  height: 27px;
+  top: 50%;
+  left: 50%;
+  border: 1px solid transparent;
+  border-right-color: #d5f2ffbc;
+  border-left-color: #d5f2ffbc;
+  border-radius: 50%;
+  color: #d5f2ff;
+}
+
+.sf3-reticle::after {
+  position: absolute;
+  content: "";
+  width: 3px;
+  height: 3px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.sf3-reticle.is-aligned {
+  border-right-color: var(--sf3-accent);
+  border-left-color: var(--sf3-accent);
+  color: var(--sf3-accent);
+  box-shadow: 0 0 14px #8ff9ff35;
+}
+
+.sf3-target {
+  width: 43px;
+  height: 43px;
+  color: #ffd296;
+  background:
+    linear-gradient(currentColor, currentColor) left top / 10px 1px no-repeat,
+    linear-gradient(currentColor, currentColor) left top / 1px 10px no-repeat,
+    linear-gradient(currentColor, currentColor) right top / 10px 1px no-repeat,
+    linear-gradient(currentColor, currentColor) right top / 1px 10px no-repeat,
+    linear-gradient(currentColor, currentColor) left bottom / 10px 1px no-repeat,
+    linear-gradient(currentColor, currentColor) left bottom / 1px 10px no-repeat,
+    linear-gradient(currentColor, currentColor) right bottom / 10px 1px no-repeat,
+    linear-gradient(currentColor, currentColor) right bottom / 1px 10px no-repeat;
+}
+
+.sf3-target::after {
+  position: absolute;
+  content: attr(data-hits);
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 0.67rem;
+  font-weight: 750;
+  text-shadow: 0 1px 3px #090b10;
+}
+
+.sf3-edge {
+  transform: translate(-50%, -50%) rotate(var(--sf3-bearing, 0rad));
+  width: 22px;
+  height: 19px;
+  background: #ffd296;
+  clip-path: polygon(50% 0, 100% 100%, 50% 68%, 0 100%);
+}
+
+.sf3-touch {
+  position: absolute;
+  z-index: 2;
+  inset: auto max(13px, env(safe-area-inset-right)) max(13px, env(safe-area-inset-bottom)) max(13px, env(safe-area-inset-left));
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  pointer-events: none;
+}
+
+.sf3-stick {
+  position: relative;
+  width: clamp(105px, 19vmin, 155px);
+  aspect-ratio: 1;
+  border: 1px solid #78a0bcbd;
+  border-radius: 50%;
+  background: radial-gradient(circle, #284563b4 0 28%, #182e46b2 29% 62%, #678aad66 63% 64%, #132138e0 65%);
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.sf3-stick span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 37%;
+  aspect-ratio: 1;
+  border: 1px solid #c0dde9;
+  border-radius: 50%;
+  background: radial-gradient(circle at 37% 32%, #b3d3e6, #6083a9 68%, #416582);
+  pointer-events: none;
+}
+
+.sf3-thumbs {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+}
+
+.sf3-thumbs .sf3-button {
+  min-width: 67px;
+  min-height: 55px;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.sf3-thumbs .sf3-primary {
+  min-width: 83px;
+  min-height: 67px;
+}
+
+.sf3-overlay {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 63px 14px 14px;
+  background: #06111bc2;
+}
+
+.sf3-dialog {
+  width: min(100%, 410px);
+  padding: clamp(14px, 3.6vw, 26px);
+  border-radius: 13px;
+  border: 1px solid var(--sf3-line);
+  background: #111e32;
+}
+
+.sf3-dialog p { color: var(--sf3-muted); }
+
+@media (max-width: 580px) {
+  .sf3-readouts span { min-width: 0; padding-inline: 5px; }
+  .sf3-hud { gap: 4px; }
+  .sf3-hud-actions { gap: 4px; }
+  .sf3-hud-actions .sf3-button { padding-inline: 7px; font-size: 0.79rem; }
+}
