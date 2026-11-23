@@ -2384,6 +2384,13 @@ select {
   user-select: none;
 }
 
+.sf3-flight,
+.sf3-flight * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .sf3-flight.is-gameplay-immersive {
   position: fixed;
   z-index: 11000;

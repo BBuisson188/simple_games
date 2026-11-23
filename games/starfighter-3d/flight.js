@@ -503,7 +503,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     age += dt;
     cooldown = Math.max(0, cooldown - dt);
     safeTime = Math.max(0, safeTime - dt);
-    const { yaw: x, pitch: y, roll: spin, boost, fire: shooting, torpedo: launch } = controls.read();
+    const { yaw: x, pitch: y, roll: spin, boost, fire: shooting, torpedo: launch } = controls.read(cooldown <= 0 && bolts.length <= 30);
     yaw = damp(yaw, -x, 9, dt);
     pitch = damp(pitch, y, 9, dt);
     roll = damp(roll, spin, 8, dt);
