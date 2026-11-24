@@ -19,6 +19,7 @@ const ATTACK_LANES = [
 ];
 const SPAWN_ALTERNATES = [[0, 0], [0, 54], [0, -54], [71, 0], [-71, 0], [83, 57], [-83, 57], [0, 108]];
 const STAGGER = 0.5;
+export const FIGHTER_BOOST_ESCAPE_CAP = 68;
 export const JUMP_SECONDS = 0.94;
 export const JUMP_AFTERGLOW = 0.29;
 export const FIGHTER_TOTAL = FORMATIONS.reduce((sum, formation) => sum + formation.length, 0);
@@ -44,6 +45,7 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
     model, slot, silhouette, position: model.position, velocity: new THREE.Vector3(), heading: new THREE.Vector3(),
     turn: new THREE.Quaternion(), hits: 0, armor: 0, cooldown: 0, charging: 0, age: 0, batch: 0, member: 0,
     flight: "flank", flightAge: 0, aimPoint: new THREE.Vector3(), framePosition: new THREE.Vector3(), tailing: false,
+    pursuitTime: 0, turnPressure: 0, wideTime: 0, wideSide: 1, widePoint: new THREE.Vector3(),
     jump: { active: false, age: 0, origin: new THREE.Vector3(), tail: new THREE.Vector3() }
   }));
   const toward = new THREE.Vector3();
@@ -51,6 +53,8 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
   const offset = new THREE.Vector3();
   const lookAhead = new THREE.Vector3();
   const pilotForward = new THREE.Vector3();
+  const pilotLook = new THREE.Vector3();
+  const previousLook = new THREE.Vector3();
   const pilotRight = new THREE.Vector3();
   const station = new THREE.Vector3();
   const relative = new THREE.Vector3();
@@ -74,6 +78,7 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
     batch = -1;
     elapsed = remaining = defeated = 0;
     pursuer = undefined;
+    previousLook.set(0, 0, 0);
     for (const enemy of enemies) {
       enemy.model.visible = enemy.jump.active = false;
       enemy.charging = 0;
@@ -119,6 +124,8 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
     enemy.flight = "flank";
     enemy.flightAge = 0;
     enemy.tailing = false;
+    enemy.pursuitTime = enemy.turnPressure = enemy.wideTime = 0;
+    enemy.wideSide = enemy.slot % 2 ? 1 : -1;
     enemy.armor = 2 + tuning.armor + Number(batch > 0 && member !== 1);
     enemy.cooldown = (2.25 + member * 0.76) * tuning.rate;
   }
@@ -146,7 +153,7 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
     return true;
   }
 
-  function update(dt, ship, orientation, playerVelocity, fire) {
+  function update(dt, ship, orientation, playerVelocity, fire, pilotBoosting = false) {
     elapsed += dt;
     for (const enemy of enemies) {
       const { jump } = enemy;
@@ -183,7 +190,10 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
       }
     }
     const active = enemies.filter(({ model }) => model.visible);
-    pilotForward.copy(FORWARD).applyQuaternion(orientation);
+    pilotLook.copy(FORWARD).applyQuaternion(orientation);
+    const turnRate = dt > 0 && previousLook.lengthSq() > .5 ? pilotLook.angleTo(previousLook) / dt : 0;
+    previousLook.copy(pilotLook);
+    pilotForward.copy(pilotLook);
     pilotForward.y = 0;
     if (pilotForward.lengthSq() < .027) pilotForward.set(0, 0, -1);
     pilotForward.normalize();
@@ -213,12 +223,39 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
         enemy.tailing = isTail;
         enemy.flight = "flank";
         enemy.flightAge = 0;
+        enemy.pursuitTime = enemy.turnPressure = enemy.wideTime = 0;
       }
       if (isTail) {
-        station.copy(ship.position).addScaledVector(pilotForward, -126).addScaledVector(pilotRight, Math.sin(phase) * 24);
-        station.y += 14 + Math.cos(phase) * 11;
-        if (axis > -50 && distance < 170) station.addScaledVector(pilotRight, 58 * side);
-        desired.copy(station).sub(position).normalize();
+        enemy.wideTime = Math.max(0, enemy.wideTime - dt);
+        const duel = active.length === 1 && distance < 255 && !pilotBoosting;
+        if (!enemy.wideTime && duel) {
+          enemy.pursuitTime += dt;
+          enemy.turnPressure = Math.max(0, enemy.turnPressure + dt * (turnRate > .43 ? 1 : -1.6));
+          if (enemy.pursuitTime >= 9.2 || (enemy.pursuitTime >= 3 && enemy.turnPressure >= 2.45)) {
+            enemy.wideTime = 3.15;
+            enemy.pursuitTime = enemy.turnPressure = enemy.charging = 0;
+            // Choose an outward point once, so the opponent can't tighten the turn as the pilot turns.
+            offset.crossVectors(heading, UP);
+            if (offset.lengthSq() < .06) offset.copy(pilotRight);
+            offset.normalize();
+            const away = offset.dot(relative);
+            if (Math.abs(away) > 17) enemy.wideSide = Math.sign(away);
+            else enemy.wideSide *= -1;
+            enemy.widePoint.copy(position).addScaledVector(heading, 138)
+              .addScaledVector(offset, enemy.wideSide * 175).addScaledVector(UP, 28);
+            if (trench) enemy.widePoint.y = THREE.MathUtils.clamp(enemy.widePoint.y, 19, 151);
+          }
+        } else if (!duel) {
+          enemy.pursuitTime = Math.max(0, enemy.pursuitTime - dt * 1.6);
+          enemy.turnPressure = Math.max(0, enemy.turnPressure - dt * 2);
+        }
+        if (enemy.wideTime) desired.copy(enemy.widePoint).sub(position).normalize();
+        else {
+          station.copy(ship.position).addScaledVector(pilotForward, -126).addScaledVector(pilotRight, Math.sin(phase) * 24);
+          station.y += 14 + Math.cos(phase) * 11;
+          if (axis > -50 && distance < 170) station.addScaledVector(pilotRight, 58 * side);
+          desired.copy(station).sub(position).normalize();
+        }
       } else {
         if (enemy.flight === "flank") {
           station.copy(ship.position).addScaledVector(pilotRight, lateral + side * (Math.sin(phase) * 22))
@@ -268,15 +305,16 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
       }
       if (desired.lengthSq() > 0.0001) {
         turn.setFromUnitVectors(heading, desired.normalize());
-        rotation.identity().slerp(turn, 1 - Math.exp(-dt * 2.5));
+        rotation.identity().slerp(turn, 1 - Math.exp(-dt * (enemy.wideTime ? .92 : 2.5)));
         heading.applyQuaternion(rotation).normalize();
       }
       const pace = THREE.MathUtils.lerp(...tuning.pace, difficultyRamp) + (member % 4) * 2.6;
       const cap = THREE.MathUtils.lerp(...tuning.limit, difficultyRamp);
       // Extra cruise keeps a moving pilot in reach without matching boost speed.
       const catchup = Math.max(0, distance - (isTail ? 117 : 190)) * .16;
-      const cruise = cap + (trench ? 8 : 7) + (distance > 200 ? 12 : 0);
-      const driftCompensation = playerVelocity.length() * (isTail ? .64 : enemy.flight === "flank" ? .53 : 0);
+      const cruise = pilotBoosting ? Math.min(cap + 7, FIGHTER_BOOST_ESCAPE_CAP)
+        : cap + (trench ? 8 : 7) + (distance > 200 ? 12 : 0);
+      const driftCompensation = Math.min(playerVelocity.length(), 55) * (isTail ? .64 : enemy.flight === "flank" ? .53 : 0);
       const runSpeed = pace + (enemy.flight === "pass" && !isTail ? 9 : 0) + Math.min(36, driftCompensation);
       velocity.copy(heading).multiplyScalar(Math.min(cruise, runSpeed + catchup));
       position.addScaledVector(velocity, dt);
@@ -296,7 +334,7 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
             fire(enemy, desired);
           }
         }
-      } else if (!enemy.cooldown && (isTail || enemy.flight !== "break") && distance > 52 && distance < 258 && heading.dot(toward) > 0.76) {
+      } else if (!enemy.cooldown && !enemy.wideTime && (isTail || enemy.flight !== "break") && distance > 52 && distance < 258 && heading.dot(toward) > 0.76) {
         enemy.charging = CHARGE_TIME;
       }
     }

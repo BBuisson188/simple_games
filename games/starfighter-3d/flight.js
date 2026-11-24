@@ -536,7 +536,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     bankAxis.setFromAxisAngle(FORWARD, autoBank);
     ship.quaternion.copy(canonical).multiply(bankAxis);
 
-    if (patrol.update(dt, ship, canonical, playerVelocity, fireHostile)) {
+    if (patrol.update(dt, ship, canonical, playerVelocity, fireHostile, boosting)) {
       repairedShield = shields < tuning.shields;
       shields = Math.min(tuning.shields, shields + 1);
       age = 0;
