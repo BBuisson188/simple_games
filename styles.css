@@ -2727,6 +2727,37 @@ select {
   color: #ddfff4;
 }
 
+.sf3-touch > :is(.sf3-level, .sf3-maneuver) {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.sf3-touch > .sf3-level {
+  left: 0;
+  bottom: calc(clamp(105px, 19vmin, 155px) + 10px);
+  min-width: 74px;
+}
+
+@media (any-pointer: coarse) and (min-width: 700px) and (min-height: 650px) {
+  .sf3-touch > .sf3-level { bottom: calc(clamp(166px, 25vmin, 208px) + 10px); }
+}
+
+.sf3-touch > .sf3-maneuver {
+  right: 85px;
+  bottom: 81px;
+  min-width: 108px;
+  border-color: #d9bc82;
+  background: #3f3346ed;
+}
+
+.sf3-maneuver small {
+  display: block;
+  font-size: .67rem;
+}
+
+.sf3-maneuver small:empty { display: none; }
+
 .sf3-overlay {
   position: absolute;
   z-index: 3;

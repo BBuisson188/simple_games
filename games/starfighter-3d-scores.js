@@ -15,7 +15,7 @@ const localKey = (difficulty) => `${PREFIX}.${difficulty}.local`;
 function localScores(difficulty) {
   try {
     const saved = JSON.parse(localStorage.getItem(localKey(difficulty)) || "[]");
-    return Array.isArray(saved) ? saved.filter((entry) => Number.isInteger(entry?.score) && entry.score > 0) : [];
+    return Array.isArray(saved) ? saved.filter((entry) => Number.isInteger(entry?.score) && entry.score >= 0) : [];
   } catch {
     return [];
   }
@@ -27,14 +27,14 @@ export function savedCallsign() {
 
 export function saveRunScore(run, callsign) {
   const name = callsign.trim().slice(0, 16);
-  if (!name || !run.ranked || !run.finished || run.saved || run.score <= 0) return null;
+  if (!name || !run.ranked || !run.hasResult || run.saved) return null;
   const { difficulty, score } = run;
   const date = new Date().toISOString();
   const scores = [...localScores(difficulty), { name, score, date }]
     .sort((a, b) => b.score - a.score || a.date.localeCompare(b.date)).slice(0, 10);
   localStorage.setItem(localKey(difficulty), JSON.stringify(scores));
   localStorage.setItem(NAME_KEY, name);
-  const entry = boards[difficulty].queueScore(name, score);
+  const entry = score > 0 ? boards[difficulty].queueScore(name, score) : { name, score, date };
   run.saved = true;
   return entry;
 }
@@ -60,11 +60,12 @@ export function refreshScores(difficulty) {
 }
 
 export function createRun(difficulty, ranked) {
-  return { difficulty, ranked, score: 0, stages: [], finished: false, saved: false };
+  return { difficulty, ranked, score: 0, stages: [], finished: false, hasResult: false, saved: false };
 }
 
 export function createStageScore(run, stage, fighterQuota) {
   const startingScore = run.score;
+  run.hasResult = false;
   let seconds = 0, fighters = 0, turrets = 0, volleys = 0, hits = 0;
   let result;
   const combatScore = () => Math.min(fighters, fighterQuota) * 100 + turrets * 75 - hits * 150 - Math.min(100, volleys);
@@ -92,15 +93,17 @@ export function createStageScore(run, stage, fighterQuota) {
       run.stages[stage - 1] = result.subtotal;
       run.score = startingScore + result.subtotal;
       run.finished = !cleared || stage === 3;
+      run.hasResult = true;
       return result;
     },
     restart() {
-      if (stage > 1) run.ranked = false;
+      if (run.saved) return false;
       run.score = startingScore;
       run.stages.length = stage - 1;
-      run.finished = run.saved = false;
+      run.finished = run.hasResult = false;
       result = undefined;
       seconds = fighters = turrets = volleys = hits = 0;
+      return true;
     }
   };
 }

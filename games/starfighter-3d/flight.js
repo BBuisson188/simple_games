@@ -1,12 +1,13 @@
 import * as THREE from "three";
 import { createStageScore } from "../starfighter-3d-scores.js";
 import { createFlightControls } from "./controls.js";
+import { createManeuver, levelAttitude } from "./maneuvers.js";
 import { createPatrol, FIGHTER_RADIUS, getDifficulty } from "./patrol.js";
 import { createCarrier, LOCK_RANGE } from "./carrier.js";
 import { FIGHTER_NAMES } from "./fighter-view.js";
 import { createFlightScene, disposeFlightMaterials, loadPlayerFighter } from "./scene.js";
 import { createFlyaway } from "./aftermath.js";
-import { EXHAUST_OPEN_DISTANCE, EXHAUST_RANGE, EXHAUST_Z, TRENCH_AXIAL_RADIUS, TRENCH_CENTER_Z, TRENCH_START_Z, exhaustLockAngle } from "./trench.js";
+import { EXHAUST_OPEN_DISTANCE, EXHAUST_RANGE, EXHAUST_Z, TRENCH_AXIAL_RADIUS, TRENCH_CENTER_Z, TRENCH_HEIGHT, TRENCH_START_Z, exhaustLockAngle } from "./trench.js";
 
 const FORWARD = new THREE.Vector3(0, 0, -1);
 const UP = new THREE.Vector3(0, 1, 0);
@@ -46,10 +47,15 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
   const find = (name) => surface.querySelector(`[data-sf3-${name}]`);
   const hud = Object.fromEntries(["shield", "stage", "kills", "contacts", "allies", "wingmen", "wing-skill", "range", "speed", "callout", "reticle", "target", "edge", "heading",
     "detail", "overlay", "resume", "reset", "next", "pause", "lock", "lock-status", "lock-meter", "torpedo",
-    "score", "result-score", "score-breakdown", "score-form", "save-status"].map((name) => [name, find(name)]));
+    "score", "result-score", "score-breakdown", "score-form", "save-status",
+    "maneuver", "maneuver-label", "maneuver-status", "level"].map((name) => [name, find(name)]));
   const events = new AbortController();
   const options = { signal: events.signal };
-  const controls = createFlightControls(surface, events.signal, togglePause);
+  const controls = createFlightControls(surface, events.signal, togglePause, launchTorpedo, startManeuver, startLevel);
+  const maneuver = createManeuver(fighterVariant);
+  const levelFrom = new THREE.Quaternion();
+  const levelTo = new THREE.Quaternion();
+  const lastHeading = FORWARD.clone();
   const scratch = new THREE.Vector3();
   const aim = new THREE.Vector3();
   const aimRelative = new THREE.Vector3();
@@ -57,6 +63,8 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
   const cameraAnchor = new THREE.Vector3();
   const lookAt = new THREE.Vector3();
   const cameraUp = new THREE.Vector3();
+  const lockOrigin = new THREE.Vector3();
+  const lockDirection = new THREE.Vector3();
   const canonical = new THREE.Quaternion();
   const pitchAxis = new THREE.Quaternion();
   const bankAxis = new THREE.Quaternion();
@@ -99,6 +107,9 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
   let slowFrames = 0;
   let frameAverage = 1 / 60;
   let lastHudText;
+  let lastTurnSide;
+  let levelAge;
+  const LEVEL_TIME = 0.46;
 
   function setText(element, text) {
     if (element.textContent !== text) element.textContent = text;
@@ -153,7 +164,11 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     breakdown.hidden = false;
     hud["result-score"].textContent = `${run.finished ? "Final score" : "Run score"}: ${run.score.toLocaleString()}${run.ranked ? "" : " · Practice"}`;
     hud["result-score"].hidden = false;
-    hud["score-form"].hidden = !run.finished || !run.ranked || run.saved || !run.score;
+    hud["score-form"].hidden = !run.ranked || run.saved;
+    if (run.ranked && run.score === 0) {
+      setText(hud["save-status"], "Zero-point runs can be saved on this device but don't enter the global leaderboard.");
+      hud["save-status"].hidden = false;
+    }
   }
 
   function pause() {
@@ -196,6 +211,11 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     target = undefined;
     bursts = [];
     canonical.identity();
+    maneuver.reset();
+    lastHeading.copy(FORWARD);
+    lastTurnSide = 1;
+    levelAge = LEVEL_TIME;
+    setText(hud["maneuver-label"], maneuver.name);
     ship.position.set(0, trench ? 24 : 33, trench ? TRENCH_START_Z : 168);
     ship.quaternion.identity();
     ship.visible = true;
@@ -222,13 +242,14 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
   }
 
   function placeCamera(dt, snap = false) {
-    cameraAnchor.set(0, 4.25, 19.5).applyQuaternion(canonical).add(ship.position);
+    const attitude = maneuver.active ? maneuver.camera : canonical;
+    cameraAnchor.set(0, 4.25, 19.5).applyQuaternion(attitude).add(ship.position);
     if (snap) camera.position.copy(cameraAnchor);
     else camera.position.lerp(cameraAnchor, 1 - Math.exp(-dt * 8.7));
     bankAxis.setFromAxisAngle(FORWARD, autoBank * 0.34);
-    cameraUp.copy(UP).applyQuaternion(bankAxis).applyQuaternion(canonical);
+    cameraUp.copy(UP).applyQuaternion(bankAxis).applyQuaternion(attitude);
     camera.up.copy(cameraUp);
-    lookAt.set(0, 1.8, -42).applyQuaternion(canonical).add(ship.position);
+    lookAt.set(0, 1.8, -42).applyQuaternion(attitude).add(ship.position);
     camera.lookAt(lookAt);
     camera.fov = damp(camera.fov, boosting ? 69 : 61, 4.7, dt);
     camera.updateProjectionMatrix();
@@ -383,7 +404,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     return mode === "wreck" ? [] : shots.filter((bolt) => bolt.life > 0);
   }
 
-  function updateLock(dt, launch) {
+  function updateLock(dt) {
     if (carrier.phase !== "active") return;
     if (battle?.allies) {
       lockProgress = 0;
@@ -392,6 +413,11 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     }
     if (torpedo) {
       lockHint = "Torpedo away";
+      return;
+    }
+    if (maneuver.active || levelAge < LEVEL_TIME) {
+      lockProgress = 0;
+      lockHint = "Steady your fighter to lock";
       return;
     }
     if (trench && !trench.open) {
@@ -414,22 +440,59 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     else if (range < (trench ? 18 : 40)) lockHint = "Too close · Bank around for another pass";
     else if (direction.dot(aim) < cone || (!trench && target?.kind === "gun")) lockHint = trench ? "Line up your nose with the exhaust port" : "Center the glowing nose port";
     else {
-      ray.origin.copy(ship.position);
-      ray.direction.copy(direction);
+      // Validate the actual launch path, not a ray from the ship's center or straight off the nose.
+      lockOrigin.set(0, -0.55, -4.9).applyQuaternion(canonical).add(ship.position);
+      lockDirection.copy(carrier.port.position).sub(lockOrigin).normalize();
+      ray.origin.copy(lockOrigin);
+      ray.direction.copy(lockDirection);
       const portHit = distanceToHit(carrier.port.position, carrier.port.radius);
-      eligible = portHit < Math.min(nearestRock(range), carrier.distanceToHull(ray));
+      eligible = carrier.frontFacing(lockOrigin) && portHit < Math.min(nearestRock(range), carrier.distanceToHull(ray));
       lockHint = eligible ? "Holding torpedo lock…" : trench ? "Shot blocked · Get inside the approach lights" : "Port blocked · Change your angle";
     }
     lockProgress = eligible ? Math.min(1, lockProgress + dt / tuning.lock) : 0;
-    if (lockProgress < 1) return;
-    lockHint = "Lock confirmed · Fire torpedo";
-    if (!launch) return;
+    if (lockProgress === 1) lockHint = "Lock confirmed · Fire torpedo";
+  }
+
+  function launchTorpedo() {
+    // The ready HUD and the validated launch path belong to the same simulation frame.
+    // Don't defer to another frame where the pilot may already have turned away.
+    if (mode !== "flying" || carrier.phase !== "active" || lockProgress !== 1 || torpedo) return;
     torpedo = {
-      position: new THREE.Vector3(0, -0.55, -4.9).applyQuaternion(canonical).add(ship.position),
-      direction: aim.clone(), orientation: new THREE.Quaternion().setFromUnitVectors(UP, aim), life: trench ? 3.2 : 2.5
+      position: lockOrigin.clone(), direction: lockDirection.clone(),
+      orientation: new THREE.Quaternion().setFromUnitVectors(UP, lockDirection), life: trench ? 3.2 : 2.5
     };
     lockProgress = 0;
     lockHint = "Torpedo away";
+    hud.torpedo.disabled = true;
+    hud.lock.classList.remove("is-locked");
+    hud["lock-meter"].value = 0;
+    setText(hud["lock-status"], lockHint);
+  }
+
+  function clearManeuverLock() {
+    lockProgress = 0;
+    hud.torpedo.disabled = true;
+  }
+
+  function startManeuver(direction) {
+    if (mode !== "flying" || introAge < 2 || levelAge < LEVEL_TIME) return;
+    if (maneuver.loop && trench && ship.position.y > TRENCH_HEIGHT - 65) return;
+    if (!maneuver.start(canonical, Math.abs(direction) > .12 ? direction : lastTurnSide)) return;
+    speed = Math.min(speed, maneuver.speed + 4);
+    boosting = false;
+    yaw = pitch = roll = autoBank = 0;
+    clearManeuverLock();
+    hud.maneuver.disabled = true;
+  }
+
+  function startLevel() {
+    if (mode !== "flying" || introAge < 2 || maneuver.active || levelAge < LEVEL_TIME) return;
+    levelFrom.copy(canonical);
+    levelAttitude(lastHeading, levelTo);
+    levelAge = 0;
+    yaw = pitch = roll = autoBank = 0;
+    clearManeuverLock();
+    hud.level.disabled = true;
   }
 
   function updateTorpedo(dt) {
@@ -505,7 +568,8 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
       if (finished) {
         mode = "failed";
         stopLoop();
-        describe(`${playerFighter.name} destroyed`, level > 1 ? "Retrying this stage is practice." : "Retry to start a fresh ranked run.", false, true);
+        const retryHint = level > 1 ? "Retry to restore your stage-entry score" : "Retry to start over from zero";
+        describe(`${playerFighter.name} destroyed`, retryHint + (run.ranked ? ", or save this result." : "."), false, true);
         showResult(stageScore.finish(false));
       }
       return;
@@ -522,10 +586,10 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
         stopLoop();
         describe(trench ? "Mission complete" : `Stage ${level} complete`,
           trench ? "The Death Star is destroyed. Your fighter cleared the blast."
-            : battle ? "Next objective: Destroy the exhaust port on the Death Star." : `${carrier.name} destroyed. Ready for the next jump?`, false, Boolean(trench));
+            : battle ? "Next objective: Destroy the exhaust port on the Death Star." : `${carrier.name} destroyed. Ready for the next jump?`, false, true);
         hud.next.textContent = trench ? "Return to briefing" : `Jump to Stage ${level + 1}`;
         hud.next.dataset.level = trench ? "brief" : battle ? "trench" : "longbow";
-        hud.next.hidden = Boolean(trench && run.ranked && run.score);
+        hud.next.hidden = Boolean(trench && run.ranked);
         if (!hud.next.hidden) hud.next.focus({ preventScroll: true });
         showResult(result);
       }
@@ -543,17 +607,26 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     age += dt;
     cooldown = Math.max(0, cooldown - dt);
     safeTime = Math.max(0, safeTime - dt);
-    const { yaw: x, pitch: y, roll: spin, boost, fire: shooting, torpedo: launch } = controls.read(cooldown <= 0 && bolts.length <= 30);
-    yaw = damp(yaw, -x, 9, dt);
-    pitch = damp(pitch, y, 9, dt);
-    roll = damp(roll, spin, 8, dt);
-    autoBank = damp(autoBank, x * 0.54, 5.2, dt);
-    pitchAxis.setFromAxisAngle(UP, yaw * 1.35 * dt);
-    canonical.multiply(pitchAxis);
-    pitchAxis.setFromAxisAngle(RIGHT, pitch * 1.24 * dt);
-    canonical.multiply(pitchAxis);
-    pitchAxis.setFromAxisAngle(FORWARD, roll * 1.64 * dt);
-    canonical.multiply(pitchAxis).normalize();
+    const { yaw: x, pitch: y, roll: spin, boost, fire: shooting } = controls.read(cooldown <= 0 && bolts.length <= 30);
+    const turning = maneuver.step(dt, canonical);
+    if (Math.abs(x) > .12) lastTurnSide = Math.sign(x);
+    if (turning) {
+      autoBank = maneuver.bank;
+    } else if (levelAge < LEVEL_TIME) {
+      levelAge = Math.min(LEVEL_TIME, levelAge + dt);
+      canonical.copy(levelFrom).slerp(levelTo, THREE.MathUtils.smoothstep(levelAge, 0, LEVEL_TIME));
+    } else {
+      yaw = damp(yaw, -x, 9, dt);
+      pitch = damp(pitch, y, 9, dt);
+      roll = damp(roll, spin, 8, dt);
+      autoBank = damp(autoBank, x * 0.54, 5.2, dt);
+      pitchAxis.setFromAxisAngle(UP, yaw * 1.35 * dt);
+      canonical.multiply(pitchAxis);
+      pitchAxis.setFromAxisAngle(RIGHT, pitch * 1.24 * dt);
+      canonical.multiply(pitchAxis);
+      pitchAxis.setFromAxisAngle(FORWARD, roll * 1.64 * dt);
+      canonical.multiply(pitchAxis).normalize();
+    }
 
     if (trench) {
       // Stretch the patrol perimeter along the trench, independent of the climb ceiling.
@@ -573,9 +646,11 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
         canonical.slerp(towardCenter, 1 - Math.exp(-dt * 1.25));
       }
     }
-    boosting = boost && !escapeWarning && !aboveDeck;
-    speed = damp(speed, boosting ? 123 : 55, boosting ? 2.7 : 3.2, dt);
+    boosting = boost && !turning && !escapeWarning && !aboveDeck;
+    speed = damp(speed, turning ? maneuver.speed : boosting ? 123 : 55, boosting ? 2.7 : 3.2, dt);
     playerVelocity.copy(FORWARD).applyQuaternion(canonical).multiplyScalar(speed);
+    scratch.set(playerVelocity.x, 0, playerVelocity.z);
+    if (scratch.lengthSq() > speed * speed * .025) lastHeading.copy(scratch).normalize();
     ship.position.addScaledVector(playerVelocity, dt);
     bankAxis.setFromAxisAngle(FORWARD, autoBank);
     ship.quaternion.copy(canonical).multiply(bankAxis);
@@ -596,7 +671,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
       if (!trench) shields = Math.min(tuning.shields, shields + 1);
     }
     battle?.update(dt, patrol, carrier, ship.position, showBurst);
-    updateLock(dt, launch);
+    updateLock(dt);
     updateTorpedo(dt);
     if (mode === "cinematic") return;
     hostileBolts = patrol.remaining || carrier.phase === "active" ? updateBolts(dt, hostileBolts, true) : [];
@@ -636,6 +711,14 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     setText(hud.range, target?.model.visible ? `${Math.round(ship.position.distanceTo(target.position))} m` : "—");
     setText(hud.speed, `${Math.round(speed)} m/s`);
     setText(hud.score, String(stageScore.liveTotal));
+    const noClimbRoom = maneuver.loop && trench && ship.position.y > TRENCH_HEIGHT - 65;
+    const leveling = levelAge < LEVEL_TIME;
+    const canAssist = mode === "flying" && !jumping && !maneuver.active && !leveling;
+    hud.maneuver.disabled = !canAssist || maneuver.cooldown > 0 || Boolean(noClimbRoom);
+    hud.level.disabled = !canAssist;
+    setText(hud.level, leveling ? "Leveling…" : "Level");
+    setText(hud["maneuver-status"], maneuver.active ? "In progress"
+      : maneuver.cooldown > 0 ? `${Math.ceil(maneuver.cooldown)}s cooldown` : noClimbRoom ? "Need room above" : "");
     const incoming = patrol.enemies.some((enemy) => enemy.charging > 0)
       || carrier.guns.some((gun) => gun.charging > 0) || hostileBolts.length > 0;
     const status = ending ? (mode === "cinematic" ? "Autopilot · Breaking away" : "")
@@ -722,8 +805,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
   hud.pause.addEventListener("click", pause, options);
   hud.resume.addEventListener("click", resume, options);
   hud.reset.addEventListener("click", () => {
-    if (lost) return;
-    stageScore.restart();
+    if (lost || !stageScore.restart()) return;
     reset();
   }, options);
   window.addEventListener("blur", pause, options);

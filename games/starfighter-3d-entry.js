@@ -13,9 +13,10 @@ export function renderStarfighter3D() {
       </div>
       <div class="sf3-intro">
         <h3>Choose a level</h3>
-        <p>Start at Stage 1 for a ranked run through all three stages. Direct starts and retries at later stages are practice.</p>
+        <p>Start at Stage 1 for a ranked run. Retry keeps the points you brought into the stage. Jumping straight to Stage 2 or 3 is practice.</p>
         <p class="sf3-controls-copy">Touch: drag the stick to steer. Hold Fire or Boost with your right thumb.<br>
-          Keyboard: arrows or WASD to steer, Q/E to roll, Space to fire, Shift to boost, T to launch a locked torpedo.</p>
+          Keyboard: arrows or WASD to steer, Q/E to roll, Space to fire, Shift to boost, T to launch a locked torpedo.<br>
+          Tap the ship's maneuver (R) for a special turn, or Level (L) to fly upright without changing heading.</p>
         <div class="sf3-start-row">
           <label class="sf3-difficulty"><span id="sf3-fighter-label">Your ship</span>
             <select class="sf3-button" data-sf3-fighter aria-labelledby="sf3-fighter-label">
@@ -42,6 +43,7 @@ export function renderStarfighter3D() {
           <span class="sf3-status" role="status" data-sf3-status>Preparing flight files…</span>
         </div>
         <p id="sf3-difficulty-help" class="sf3-controls-copy" data-sf3-difficulty-help></p>
+        <p class="sf3-controls-copy" data-sf3-maneuver-help></p>
         <details class="sf3-leaderboard" data-sf3-leaderboard>
           <summary>Global leaderboard</summary>
           <h4 data-sf3-board-title></h4>
@@ -78,6 +80,10 @@ export function renderStarfighter3D() {
       <div class="sf3-edge" data-sf3-edge aria-hidden="true" hidden></div>
       <div class="sf3-touch">
         <div class="sf3-stick" data-sf3-stick aria-hidden="true"><span></span></div>
+        <button class="sf3-button sf3-level" type="button" data-sf3-level aria-keyshortcuts="L">Level</button>
+        <button class="sf3-button sf3-maneuver" type="button" data-sf3-maneuver aria-keyshortcuts="R" disabled>
+          <span data-sf3-maneuver-label>Snap Turn</span><small data-sf3-maneuver-status></small>
+        </button>
         <div class="sf3-thumbs">
           <button class="sf3-button sf3-torpedo" type="button" data-sf3-torpedo hidden disabled>Torpedo</button>
           <button class="sf3-button" type="button" data-sf3-boost>Boost</button>
@@ -154,6 +160,11 @@ export function mountStarfighter3D(panel) {
     find("difficulty-help").textContent = descriptions[difficulty.value];
     try { localStorage.setItem(difficultyKey, difficulty.value); } catch { /* Optional preference. */ }
     if (leaderboard.open) void loadBoard();
+  }
+  function updateFighterHelp() {
+    find("maneuver-help").textContent = fighter.value === "rebel"
+      ? "Rebel Fighter · Half-loop: Climb over the top, roll upright, and fly back the way you came."
+      : "Jedi Fighter · Snap Turn: Steer left or right, then snap 110° into the turn.";
   }
   const immersive = createImmersiveGameplay(surface, { orientation: "landscape" });
   const events = new AbortController();
@@ -237,7 +248,7 @@ export function mountStarfighter3D(panel) {
 
   async function launch(destination) {
     const advancing = typeof destination === "string";
-    if (!flightModule || (!surface.hidden && !advancing)) return;
+    if (!flightModule || (!surface.hidden && !advancing) || (advancing && run?.saved)) return;
     const current = ++launchId;
     if (advancing) {
       activeFlight?.();
@@ -309,16 +320,18 @@ export function mountStarfighter3D(panel) {
       return;
     }
     if (!entry) return;
-    scoreForm.hidden = find("reset").hidden = true;
-    if (navigator.onLine) void refreshScores(finishedRun.difficulty);
+    scoreForm.hidden = find("reset").hidden = find("next").hidden = true;
+    if (entry.score > 0 && navigator.onLine) void refreshScores(finishedRun.difficulty);
     brief.querySelector("[data-menu]").click();
   }, options);
   difficulty.addEventListener("change", updateDifficulty, options);
   fighter.addEventListener("change", () => {
     try { localStorage.setItem(fighterKey, fighter.value); } catch { /* Optional preference. */ }
+    updateFighterHelp();
   }, options);
   navigator.serviceWorker?.addEventListener("controllerchange", syncOfflineLabel, options);
   updateDifficulty();
+  updateFighterHelp();
   void prepare();
 
   return () => {
