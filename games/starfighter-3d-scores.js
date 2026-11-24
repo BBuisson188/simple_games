@@ -63,27 +63,28 @@ export function createRun(difficulty, ranked) {
   return { difficulty, ranked, score: 0, stages: [], finished: false, hasResult: false, saved: false };
 }
 
-export function createStageScore(run, stage, fighterQuota) {
+export function createStageScore(run, stage, fighterQuota, finalStage = stage === 4) {
   const startingScore = run.score;
   run.hasResult = false;
-  let seconds = 0, fighters = 0, turrets = 0, volleys = 0, hits = 0;
+  let seconds = 0, fighters = 0, turrets = 0, objectives = 0, volleys = 0, hits = 0;
   let result;
-  const combatScore = () => Math.min(fighters, fighterQuota) * 100 + turrets * 75 - hits * 150 - Math.min(100, volleys);
+  const combatScore = () => Math.min(fighters, fighterQuota) * 100 + turrets * 75 + objectives * 250 - hits * 150 - Math.min(100, volleys);
   function breakdown(cleared = false) {
     const elapsed = Math.floor(seconds);
     const clearPoints = cleared ? 1500 : 0;
     const speedPoints = cleared ? Math.max(0, 1200 - 5 * elapsed) : 0;
     const fighterPoints = Math.min(fighters, fighterQuota) * 100;
     const turretPoints = turrets * 75;
+    const objectivePoints = objectives * 250;
     const hitPenalty = hits * 150;
     const volleyPenalty = Math.min(100, volleys);
     const subtotal = Math.max(0, clearPoints + speedPoints + combatScore());
-    return { elapsed, cleared, fighters, turrets, hits, volleys, clearPoints, speedPoints, fighterPoints, turretPoints, hitPenalty, volleyPenalty, subtotal };
+    return { elapsed, cleared, fighters, turrets, objectives, hits, volleys, clearPoints, speedPoints, fighterPoints, turretPoints, objectivePoints, hitPenalty, volleyPenalty, subtotal };
   }
 
   return {
     tick(dt) { if (!result) seconds += dt; },
-    kill(kind) { if (!result) { if (kind === "gun") turrets++; else fighters++; } },
+    kill(kind) { if (!result) { if (kind === "gun") turrets++; else if (kind === "walker") objectives++; else fighters++; } },
     hit() { if (!result) hits++; },
     fire() { if (!result) volleys++; },
     get liveTotal() { return startingScore + (result?.subtotal ?? Math.max(0, combatScore())); },
@@ -92,7 +93,7 @@ export function createStageScore(run, stage, fighterQuota) {
       result = breakdown(cleared);
       run.stages[stage - 1] = result.subtotal;
       run.score = startingScore + result.subtotal;
-      run.finished = !cleared || stage === 3;
+      run.finished = !cleared || finalStage;
       run.hasResult = true;
       return result;
     },
@@ -102,7 +103,7 @@ export function createStageScore(run, stage, fighterQuota) {
       run.stages.length = stage - 1;
       run.finished = run.hasResult = false;
       result = undefined;
-      seconds = fighters = turrets = volleys = hits = 0;
+      seconds = fighters = turrets = objectives = volleys = hits = 0;
       return true;
     }
   };

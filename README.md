@@ -92,6 +92,8 @@ Each pending sync key also has a `.globalCache` companion key that stores the la
 
 Starfighter 3D ranks runs started at Stage 1. A named score can be saved after a loss or after clearing any stage. Saving ends the run and returns to the arcade; retrying discards that attempt, restores the stage-entry total and keeps the run eligible to save its next result. Direct later-stage starts are practice. Zero-point results can be saved locally, but aren't posted to the global board. Each clear earns 1,500 points plus a speed bonus (1,200 minus 5 per active second, floored at zero). Personal fighter kills earn 100 points (up to eight in the trench); turrets earn 75. Hits cost 150 each, and laser volleys cost 1 each up to 100 per stage. Stage subtotals never go below zero. Each difficulty has its own global top 10.
 
+The campaign runs through Asteroid Belt, Fleet Battle, Hoth, and the Death Star Trench in that order. On Hoth, disable four walkers with torpedoes: attack the chin from the front, the vent from its left, the power cell from behind, and the reactor hatch from above. Each walker earns 250 points; its two independently targetable cannons are optional. Hoth uses local procedural terrain and walker geometry, so it is part of the standard offline download.
+
 The `beau-games` Firestore leaderboard rules allow the three exact Starfighter 3D game IDs with the same read/create access and document validation used for Starfighter Arena. Keep updates/deletes disabled; there is no need for a wildcard or to create empty collections manually.
 
 ## GitHub Pages Deployment

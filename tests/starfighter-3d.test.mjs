@@ -13,6 +13,8 @@ const { Object3D, Quaternion, Vector3 } = await import(three);
 const { createPatrol, getDifficulty, TRENCH_FIGHTER_POOL } = await import("../games/starfighter-3d/patrol.js");
 const { EXHAUST_Z, TRENCH_START_Z } = await import("../games/starfighter-3d/trench.js");
 const { createManeuver, levelAttitude } = await import("../games/starfighter-3d/maneuvers.js");
+const { createHoth, hothSnow } = await import("../games/starfighter-3d/hoth.js");
+const { Ray, Scene } = await import(three);
 
 const storage = new Map();
 globalThis.localStorage = {
@@ -91,7 +93,11 @@ test("final score saves once; campaign uses an eight-kill and 100-volley cap in 
   const run = createRun("standard", true);
   createStageScore(run, 1, 8).finish(true);
   createStageScore(run, 2, 15).finish(true);
-  const trench = createStageScore(run, 3, 8);
+  const hoth = createStageScore(run, 3, 0);
+  for (let i = 0; i < 4; i++) hoth.kill("walker");
+  assert.equal(hoth.finish(true).objectivePoints, 1000);
+  assert.equal(run.finished, false);
+  const trench = createStageScore(run, 4, 8);
   for (let i = 0; i < 10; i++) trench.kill("fighter");
   for (let i = 0; i < 150; i++) trench.fire();
   trench.tick(245);
@@ -99,10 +105,42 @@ test("final score saves once; campaign uses an eight-kill and 100-volley cap in 
   assert.equal(result.fighterPoints, 800);
   assert.equal(result.volleyPenalty, 100);
   assert.equal(result.speedPoints, 0);
+  assert.equal(run.finished, true);
   assert.equal(saveRunScore(run, "Pilot").score, run.score);
   assert.equal(saveRunScore(run, "Pilot"), null);
   assert.equal(scoreSnapshot("standard").pending.length, 1);
   assert.equal(scoreSnapshot("rookie").pending.length, 0);
+});
+
+test("Hoth has four different clear torpedo approaches, eight independent guns, and a final-only clear", () => {
+  const battlefield = createHoth(new Scene());
+  assert.equal(battlefield.guns.length, 8);
+  assert.equal(new Set(battlefield.walkers.map(({ port }) => port.name)).size, 4);
+  for (const [index, walker] of battlefield.walkers.entries()) {
+    const { port } = walker;
+    const origin = port.position.clone().addScaledVector(port.normal, 150);
+    const wrongSide = port.position.clone().addScaledVector(port.normal, -100);
+    const aim = port.position.clone().sub(origin).normalize();
+    assert.equal(battlefield.choosePort(origin, aim), port);
+    assert(battlefield.canApproach(origin, port));
+    assert(!battlefield.canApproach(wrongSide, port));
+    assert(battlefield.distanceToHull(new Ray(origin, aim), 150) > 150 - port.radius);
+    const [left, right] = walker.guns;
+    assert.equal(battlefield.hitGun(left), false);
+    assert.equal(battlefield.hitGun(left), true);
+    assert.equal(right.model.visible, true);
+    assert.equal(battlefield.hitPort(port, () => {}), index === 3);
+    assert.equal(right.model.visible, false);
+    assert.equal(battlefield.remaining, 3 - index);
+  }
+  battlefield.update(5, new Vector3(), new Vector3(), () => {}, () => {});
+  assert.equal(battlefield.phase, "defeated");
+  battlefield.reset();
+  assert(battlefield.guns.every((gun) => gun.model.visible));
+  assert.equal(battlefield.remaining, 4);
+  const belowGround = new Vector3(5, -100, 0);
+  assert(battlefield.separateShip(belowGround));
+  assert(belowGround.y > hothSnow(5, 0));
 });
 
 for (const [difficulty, total] of [["rookie", 8], ["standard", 9], ["ace", 10]]) {

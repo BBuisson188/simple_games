@@ -2529,6 +2529,8 @@ select {
   white-space: nowrap;
 }
 
+.sf3-kills-label { font-size: inherit; }
+
 .sf3-callout {
   position: absolute;
   z-index: 1;

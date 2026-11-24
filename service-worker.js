@@ -1,4 +1,4 @@
-const CACHE_NAME = "mini-games-v95";
+const CACHE_NAME = "mini-games-v96";
 const flightPaths = ["./games/starfighter-3d/", "./assets/starfighter-3d/"]
   .map((path) => new URL(path, self.registration.scope).pathname);
 
@@ -36,7 +36,7 @@ const APP_ASSETS = [
   "./assets/menu/pine-ridge-run.jpg",
   ...[
     "flight.js", "scene.js", "controls.js", "maneuvers.js", "patrol.js", "carrier.js", "carrier-view.js", "craft-geometry.js",
-    "fighter-view.js", "jump-view.js", "rebel-view.js", "level-view.js", "aftermath.js", "fighter-wreck.js", "trench.js",
+    "fighter-view.js", "jump-view.js", "rebel-view.js", "level-view.js", "aftermath.js", "fighter-wreck.js", "hoth.js", "trench.js",
     "vendor/three.module.js", "vendor/three.core.js", "vendor/loaders/GLTFLoader.js",
     "vendor/utils/BufferGeometryUtils.js", "vendor/utils/SkeletonUtils.js"
   ].map((name) => `./games/starfighter-3d/${name}`),

@@ -13,7 +13,7 @@ export function renderStarfighter3D() {
       </div>
       <div class="sf3-intro">
         <h3>Choose a level</h3>
-        <p>Start at Stage 1 for a ranked run. Retry keeps the points you brought into the stage. Jumping straight to Stage 2 or 3 is practice.</p>
+        <p>Start at Stage 1 for a ranked run. Retry keeps the points you brought into the stage. Jumping straight to a later stage is practice.</p>
         <p class="sf3-controls-copy">Touch: drag the stick to steer. Hold Fire or Boost with your right thumb.<br>
           Keyboard: arrows or WASD to steer, Q/E to roll, Space to fire, Shift to boost, T to launch a locked torpedo.<br>
           Tap the ship's maneuver (R) for a special turn, or Level (L) to fly upright without changing heading.</p>
@@ -33,9 +33,10 @@ export function renderStarfighter3D() {
           </label>
           <label class="sf3-difficulty"><span id="sf3-carrier-label">Level</span>
             <select class="sf3-button" data-sf3-carrier aria-labelledby="sf3-carrier-label">
-              <option value="ironwake">1 · Verdant Orbit</option>
+              <option value="ironwake">1 · Asteroid Belt</option>
               <option value="longbow">2 · Fleet Battle</option>
-              <option value="trench">3 · Death Star Trench</option>
+              <option value="hoth">3 · Hoth</option>
+              <option value="trench">4 · Death Star Trench</option>
             </select>
           </label>
           <button class="sf3-button sf3-primary" type="button" data-sf3-start disabled>Launch Patrol</button>
@@ -59,7 +60,7 @@ export function renderStarfighter3D() {
         <div class="sf3-readouts">
           <span>Shield <strong data-sf3-shield>3 / 3</strong></span>
           <span>Stage <strong data-sf3-stage>Fighters</strong></span>
-          <span>Fighters down <strong data-sf3-kills>0 / 8</strong></span>
+          <span><small class="sf3-kills-label" data-sf3-kills-label>Fighters down</small><strong data-sf3-kills>0 / 8</strong></span>
           <span>Hostiles <strong data-sf3-contacts>0</strong></span>
           <span data-sf3-wingmen hidden>Wingmen <strong data-sf3-allies>7</strong><small data-sf3-wing-skill></small></span>
           <span>Target <strong data-sf3-range>—</strong></span>
@@ -265,6 +266,7 @@ export function mountStarfighter3D(panel) {
     find("heading").textContent = `Launching ${fighterName}`;
     surface.querySelector("canvas").setAttribute("aria-label", `${fighterName} chase camera`);
     find("detail").textContent = carrier.value === "trench" ? "Destroy the exhaust port on the Death Star."
+      : carrier.value === "hoth" ? "Defend the snow bases. Disable four walkers with torpedoes."
       : carrier.value === "longbow" ? "Preparing the fleet battle…" : "Preparing the asteroid belt…";
     find("resume").hidden = true;
     find("reset").hidden = true;
@@ -296,7 +298,7 @@ export function mountStarfighter3D(panel) {
     if (event.currentTarget.hidden) return;
     const destination = event.currentTarget.dataset.level;
     if (destination === "brief") exitFlight();
-    else if (destination === "longbow" || destination === "trench") void launch(destination);
+    else if (["longbow", "hoth", "trench"].includes(destination)) void launch(destination);
   }, options);
   retry.addEventListener("click", prepare, options);
   leaderboard.addEventListener("toggle", () => { if (leaderboard.open) void loadBoard(); }, options);

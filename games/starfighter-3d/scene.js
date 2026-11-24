@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { createHoth } from "./hoth.js";
 import { GLTFLoader } from "./vendor/loaders/GLTFLoader.js";
 import { mergeVertices } from "./vendor/utils/BufferGeometryUtils.js";
 import { CHARGE_TIME, FIGHTER_POOL, FLEET_FIGHTER_POOL, TRENCH_FIGHTER_POOL } from "./patrol.js";
@@ -213,11 +214,13 @@ export function createFlightScene(canvas, playerFighter, carrierVariant, tuningR
   scene.background = new THREE.Color("#02050e");
   scene.fog = new THREE.FogExp2("#0a1122", 0.00065);
   const camera = new THREE.PerspectiveCamera(61, 1, 0.2, 3600);
-  const sky = createSky(scene);
   const fleetBattle = carrierVariant === "longbow";
   const surfaceRun = carrierVariant === "trench";
-  const belt = fleetBattle || surfaceRun ? { rocks: [], draw() {} } : createRocks(scene);
-  const orbit = fleetBattle || surfaceRun ? null : createVerdantPlanet(scene, renderer);
+  const snowBattle = carrierVariant === "hoth";
+  const sky = snowBattle ? null : createSky(scene);
+  if (snowBattle) scene.fog = new THREE.FogExp2("#bed5eb", .00075);
+  const belt = fleetBattle || surfaceRun || snowBattle ? { rocks: [], draw() {} } : createRocks(scene);
+  const orbit = fleetBattle || surfaceRun || snowBattle ? null : createVerdantPlanet(scene, renderer);
   const ship = new THREE.Group();
   ship.add(playerFighter);
   scene.add(ship);
@@ -231,10 +234,11 @@ export function createFlightScene(canvas, playerFighter, carrierVariant, tuningR
   const texture = glowTexture();
   const wreck = createFighterWreck(scene, ship, playerFighter, camera, texture);
   const battle = fleetBattle ? createFleetBattle(scene, texture, playerFighter) : null;
-  const drones = createFighterFleet(scene, texture, surfaceRun ? TRENCH_FIGHTER_POOL : fleetBattle ? FLEET_FIGHTER_POOL : FIGHTER_POOL);
+  const drones = snowBattle ? [] : createFighterFleet(scene, texture, surfaceRun ? TRENCH_FIGHTER_POOL : fleetBattle ? FLEET_FIGHTER_POOL : FIGHTER_POOL);
   const drawFighterJumps = createFighterJumps(scene, drones.length);
   const trench = surfaceRun ? createTrench(scene, texture, tuningRate) : null;
-  const carrierView = trench ? null : createCarrierView(scene, texture, carrierVariant);
+  const hoth = snowBattle ? createHoth(scene, tuningRate) : null;
+  const carrierView = trench || hoth ? null : createCarrierView(scene, texture, carrierVariant);
   if (carrierView) carrierView.breakup = createShipBreakup(carrierView, texture, fleetBattle ? 2 : 3, 5.2);
   const rings = [];
   for (const name of ["Thruster_L", "Thruster_R", "Thruster_Trim_L", "Thruster_Trim_R"]) {
@@ -272,6 +276,7 @@ export function createFlightScene(canvas, playerFighter, carrierVariant, tuningR
       if (state) {
         mesh.position.copy(state.position);
         mesh.quaternion.copy(state.orientation);
+        mesh.scale.setScalar(state.enemy?.heavy ? 1.65 : 1);
       }
     }
   }
@@ -304,9 +309,10 @@ export function createFlightScene(canvas, playerFighter, carrierVariant, tuningR
   }
 
   function paint(time, boosting, bolts, hostileBolts, torpedo, enemies, bursts, introAge = 2) {
-    sky.position.copy(camera.position);
+    sky?.position.copy(camera.position);
     orbit?.draw(time, camera);
     trench?.draw(camera);
+    hoth?.draw(camera);
     battle?.hyperspace(introAge, camera);
     belt.draw(time);
     for (const { halo, scale } of rings) {
@@ -356,5 +362,5 @@ export function createFlightScene(canvas, playerFighter, carrierVariant, tuningR
     }
   }
 
-  return { camera, drones, ship, carrierView, battle, trench, wreck, rocks: belt.rocks, paint, resize, dispose };
+  return { camera, drones, ship, carrierView, battle, trench, hoth, wreck, rocks: belt.rocks, paint, resize, dispose };
 }
