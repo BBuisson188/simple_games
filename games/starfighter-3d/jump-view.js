@@ -11,6 +11,7 @@ const VERTEX = `
 
 const STREAK = `
   uniform float progress;
+  uniform float exitBloom;
   uniform float opacity;
   uniform float seed;
   varying vec2 uvJump;
@@ -21,9 +22,11 @@ const STREAK = `
     float reach = 0.84 * (1.0 - progress) * (1.0 - progress) - 0.045;
     float reveal = smoothstep(reach - 0.04, reach + 0.035, t);
     float taper = 1.0 - smoothstep(0.47, 1.0, t);
-    float width = mix(0.032, 0.009, t);
+    // A ship-sized mouth grows close to the exit while the long centerline stays straight.
+    float mouth = exitBloom * (1.0 - smoothstep(0.02, 0.24, t));
+    float width = mix(0.033, 0.009, t) + mouth * 0.096;
     float core = (1.0 - smoothstep(width * 0.28, width, abs(x))) * taper * reveal;
-    float halo = exp(-abs(x) * mix(12.0, 51.0, t)) * taper * reveal;
+    float halo = exp(-abs(x) * mix(mix(12.0, 51.0, t), 5.0, mouth)) * taper * reveal;
 
     // Linear taper keeps each lane straight while bringing them together at the ship.
     float fieldWidth = mix(0.24, 1.0, t);
@@ -40,7 +43,7 @@ const STREAK = `
     float thinning = smoothstep(closest, closest + 0.13, t);
     star *= thinning * smoothstep(0.035, 0.073, abs(x)) * (1.0 - smoothstep(0.55, 0.99, abs(fieldX)));
     star *= smoothstep(0.04, 0.33, progress) * (0.19 + offset * 0.36);
-    vec3 light = vec3(0.84, 0.96, 1.0) * core + vec3(0.10, 0.40, 0.99) * (halo * 0.52)
+    vec3 light = vec3(0.84, 0.96, 1.0) * core + vec3(0.10, 0.40, 0.99) * (halo * (0.52 + mouth * 0.21))
       + vec3(0.35, 0.69, 1.0) * star;
     gl_FragColor = vec4(light * opacity, 1.0);
   }
@@ -52,8 +55,8 @@ const FLARE = `
   void main() {
     vec2 p = uvJump * 2.0 - 1.0;
     float r = length(p);
-    float haze = exp(-r * 5.2) * 0.87;
-    float hot = 1.0 - smoothstep(0.0, 0.25, r);
+    float haze = exp(-r * 4.1) * 0.79;
+    float hot = 1.0 - smoothstep(0.0, 0.35, r);
     gl_FragColor = vec4(mix(vec3(0.21, 0.48, 1.0), vec3(0.91, 0.98, 1.0), hot),
       opacity * (haze + hot * 0.46) * (1.0 - smoothstep(0.60, 1.0, r)));
   }
@@ -68,7 +71,7 @@ export function createFighterJumps(scene, count) {
   });
   const effects = Array.from({ length: count }, (_, i) => {
     const trail = new THREE.Mesh(trailPlane, makeMaterial(STREAK, {
-      opacity: { value: 0 }, progress: { value: 0 }, seed: { value: i + 0.4 }
+      opacity: { value: 0 }, progress: { value: 0 }, exitBloom: { value: 0 }, seed: { value: i + 0.4 }
     }));
     const flare = new THREE.Mesh(flarePlane, makeMaterial(FLARE, { opacity: { value: 0 } }));
     trail.visible = flare.visible = false;
@@ -83,18 +86,19 @@ export function createFighterJumps(scene, count) {
 
   return function draw(camera, enemies) {
     effects.forEach(({ trail, flare }, i) => {
-      const { model, jump, member, batch } = enemies[i];
+      const { jump, member, batch } = enemies[i];
       trail.visible = jump.active;
       flare.visible = jump.active && jump.age > JUMP_SECONDS * 0.63;
       if (!jump.active) return;
       const arrival = Math.min(1, jump.age / JUMP_SECONDS);
-      const after = Math.max(0, jump.age - JUMP_SECONDS) / JUMP_AFTERGLOW;
+      const after = THREE.MathUtils.clamp((jump.age - JUMP_SECONDS) / JUMP_AFTERGLOW, 0, 1);
+      const mouth = THREE.MathUtils.smoothstep(arrival, 0.68, 1) * (1 - after);
       const energy = (1 - after) ** 1.4 * Math.min(1, arrival * 4);
       y.copy(jump.tail).sub(jump.origin);
       const length = y.length();
       y.multiplyScalar(1 / length);
-      if (model.visible) anchor.set(0, 0, 4.7).applyQuaternion(model.quaternion).add(model.position);
-      else anchor.copy(jump.origin).addScaledVector(y, 4.7);
+      // Leave the trail in the world where the fighter arrived, not attached to a banking ship.
+      anchor.copy(jump.origin).addScaledVector(y, 2.8);
       z.copy(camera.position).sub(anchor);
       x.crossVectors(y, z).normalize();
       if (x.lengthSq() < 1e-6) x.set(1, 0, 0).applyQuaternion(camera.quaternion);
@@ -104,13 +108,13 @@ export function createFighterJumps(scene, count) {
       trail.scale.set(60, length, 1);
       trail.material.uniforms.opacity.value = energy;
       trail.material.uniforms.progress.value = arrival;
+      trail.material.uniforms.exitBloom.value = mouth;
       trail.material.uniforms.seed.value = 1 + batch * 3 + member;
       if (!flare.visible) return;
-      const bloom = Math.min(1, Math.max(0, (arrival - 0.63) / 0.37)) * (1 - after);
-      flare.position.copy(anchor).addScaledVector(y, 1.4);
+      flare.position.copy(jump.origin);
       flare.quaternion.copy(camera.quaternion);
-      flare.scale.setScalar(8 + 9 * bloom + 4 * after);
-      flare.material.uniforms.opacity.value = bloom;
+      flare.scale.setScalar(10 + 15 * mouth + 7 * after);
+      flare.material.uniforms.opacity.value = mouth;
     });
   };
 }

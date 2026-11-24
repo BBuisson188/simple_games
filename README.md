@@ -94,6 +94,8 @@ Starfighter 3D ranks runs started at Stage 1. A named score can be saved after a
 
 The campaign runs through Asteroid Belt, Fleet Battle, Hoth, and the Death Star Trench in that order. On Hoth, disable four walkers with torpedoes: attack the chin from the front, the vent from its left, the power cell from behind, and the reactor hatch from above. Each walker earns 250 points; its two independently targetable cannons are optional. Hoth uses local procedural terrain and walker geometry, so it is part of the standard offline download.
 
+Starfighter 3D synthesizes its sound effects locally with Web Audio. Launch or Resume activates browser audio; Sound On/Off is available in both the briefing and the flight HUD and remembers the setting on that browser.
+
 The `beau-games` Firestore leaderboard rules allow the three exact Starfighter 3D game IDs with the same read/create access and document validation used for Starfighter Arena. Keep updates/deletes disabled; there is no need for a wildcard or to create empty collections manually.
 
 ## GitHub Pages Deployment

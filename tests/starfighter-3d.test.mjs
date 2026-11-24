@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import test from "node:test";
 import { createRun, createStageScore, saveRunScore, scoreSnapshot } from "../games/starfighter-3d-scores.js";
+import { createFlightAudio } from "../games/starfighter-3d-audio.js";
 
 const three = new URL("../games/starfighter-3d/vendor/three.module.js", import.meta.url).href;
 registerHooks({
@@ -9,8 +10,9 @@ registerHooks({
     return nextResolve(specifier === "three" ? three : specifier, context);
   }
 });
-const { Object3D, Quaternion, Vector3 } = await import(three);
-const { createPatrol, getDifficulty, TRENCH_FIGHTER_POOL } = await import("../games/starfighter-3d/patrol.js");
+const { Object3D, PerspectiveCamera, Quaternion, Vector3 } = await import(three);
+const { createPatrol, getDifficulty, JUMP_AFTERGLOW, JUMP_SECONDS, TRENCH_FIGHTER_POOL } = await import("../games/starfighter-3d/patrol.js");
+const { createFighterJumps } = await import("../games/starfighter-3d/jump-view.js");
 const { EXHAUST_Z, TRENCH_START_Z } = await import("../games/starfighter-3d/trench.js");
 const { createManeuver, levelAttitude } = await import("../games/starfighter-3d/maneuvers.js");
 const { createHoth, hothSnow } = await import("../games/starfighter-3d/hoth.js");
@@ -143,6 +145,18 @@ test("Hoth has four different clear torpedo approaches, eight independent guns, 
   assert(belowGround.y > hothSnow(5, 0));
 });
 
+test("Hoth emits servo and footfall events from its moving legs and distant artillery", () => {
+  const battlefield = createHoth(new Scene());
+  const cues = new Set(), player = new Object3D(), speed = new Vector3();
+  player.position.set(0, 60, 10);
+  const cue = (kind, source) => {
+    assert(Number.isFinite(source.x) && Number.isFinite(source.y) && Number.isFinite(source.z));
+    cues.add(kind);
+  };
+  for (let i = 0; i < 180; i++) battlefield.update(.05, player, speed, () => {}, () => {}, cue);
+  assert.deepEqual(cues, new Set(["servo", "step", "artillery", "artilleryImpact"]));
+});
+
 for (const [difficulty, total] of [["rookie", 8], ["standard", 9], ["ace", 10]]) {
   test(`trench ${difficulty}: distance waves reach ${total} without kills; no respawns on backtrack`, () => {
     const ship = new Object3D();
@@ -209,4 +223,77 @@ test("level assist preserves the horizontal heading while removing pitch and rol
   const nose = new Vector3(0, 0, -1).applyQuaternion(attitude);
   assert(nose.angleTo(new Vector3(heading.x, 0, heading.z)) < .0001);
   assert(new Vector3(0, 1, 0).applyQuaternion(attitude).y > .999);
+});
+
+test("hyperspace exit widens at arrival and stays at the reveal position", () => {
+  const scene = new Scene(), camera = new PerspectiveCamera();
+  const draw = createFighterJumps(scene, 1);
+  const [trail, flare] = scene.children;
+  const origin = new Vector3(-20, 10, -300);
+  const model = new Object3D();
+  const jump = { origin, tail: new Vector3(-220, 110, -640), age: JUMP_SECONDS * .55, active: true };
+  const enemies = [{ model, jump, member: 0, batch: 0 }];
+  draw(camera, enemies);
+  assert.equal(trail.material.uniforms.exitBloom.value, 0);
+  assert.equal(flare.visible, false);
+  jump.age = JUMP_SECONDS;
+  draw(camera, enemies);
+  assert.equal(trail.material.uniforms.exitBloom.value, 1);
+  assert(flare.position.equals(origin));
+  const trailAtExit = trail.position.clone();
+  model.position.set(-40, 70, -275);
+  jump.age += JUMP_AFTERGLOW * .5;
+  draw(camera, enemies);
+  assert(trail.position.equals(trailAtExit));
+  assert(flare.position.equals(origin));
+  assert(Math.abs(trail.material.uniforms.exitBloom.value - .5) < 1e-10);
+});
+
+test("flight audio limits distant voices, stops cues on pause and remembers mute", () => {
+  const settings = new Map(), panners = [], active = new Set();
+  let device;
+  function parameter() {
+    return { value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {},
+      setTargetAtTime(value) { this.value = value; } };
+  }
+  function node() {
+    return {
+      gain: parameter(), frequency: parameter(), threshold: parameter(), ratio: parameter(), pan: parameter(),
+      connect() {}, disconnect() {},
+      start() { active.add(this); },
+      stop() { active.delete(this); }
+    };
+  }
+  class Audio {
+    constructor() { device = this; this.currentTime = 0; this.sampleRate = 64; this.state = "suspended"; }
+    createGain() { return node(); }
+    createDynamicsCompressor() { return node(); }
+    createBiquadFilter() { return node(); }
+    createOscillator() { return node(); }
+    createBufferSource() { return node(); }
+    createStereoPanner() { const pan = node(); panners.push(pan); return pan; }
+    createBuffer() { return { getChannelData: () => new Float32Array(128) }; }
+    async resume() { this.state = "running"; }
+    async close() { this.state = "closed"; }
+  }
+  const host = { AudioContext: Audio, localStorage: { getItem: (key) => settings.get(key), setItem: (key, value) => settings.set(key, value) } };
+  const audio = createFlightAudio(host);
+  assert.equal(audio.play("laser"), false);
+  audio.start();
+  audio.listen(new PerspectiveCamera());
+  assert.equal(active.size, 2); // Silent engine and wind loops.
+  assert(audio.play("laser"));
+  assert(!audio.play("step", new Vector3(0, 0, -1000)));
+  assert(audio.play("step", new Vector3(150, 0, -50)));
+  assert(panners.at(-1).pan.value > 0);
+  assert(!audio.play("step", new Vector3(150, 0, -50)));
+  audio.stop();
+  assert.equal(active.size, 2);
+  assert(!audio.play("laser"));
+  audio.start();
+  audio.toggle();
+  assert(!audio.play("laser"));
+  assert(!createFlightAudio(host).enabled);
+  audio.dispose();
+  assert.equal(device.state, "closed");
 });

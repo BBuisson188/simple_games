@@ -6,7 +6,7 @@ import { mountPineRidgeRun, renderPineRidgeRun } from "./games/pine-ridge-run.js
 import { mountStarfighter3D, renderStarfighter3D } from "./games/starfighter-3d-entry.js";
 import { askOfflineWorker } from "./offline.js";
 
-const APP_VERSION = "v96";
+const APP_VERSION = "v97";
 const ACTIVE_GAME_KEY = "miniGames.activeGame";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");

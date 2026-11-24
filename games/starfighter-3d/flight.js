@@ -3,7 +3,7 @@ import { createStageScore } from "../starfighter-3d-scores.js";
 import { createFlightControls } from "./controls.js";
 import { createManeuver, levelAttitude } from "./maneuvers.js";
 import { HOTH_CENTER_Z, HOTH_REACH } from "./hoth.js";
-import { createPatrol, FIGHTER_RADIUS, getDifficulty } from "./patrol.js";
+import { createPatrol, FIGHTER_RADIUS, JUMP_SECONDS, getDifficulty } from "./patrol.js";
 import { createCarrier, LOCK_RANGE } from "./carrier.js";
 import { FIGHTER_NAMES } from "./fighter-view.js";
 import { createFlightScene, disposeFlightMaterials, loadPlayerFighter } from "./scene.js";
@@ -19,7 +19,7 @@ const HOSTILE_SPEED = 220;
 const TORPEDO_SPEED = 287;
 const damp = THREE.MathUtils.damp;
 
-export async function startFlightTest(surface, isCurrent, immersive, difficulty, carrierVariant, fighterVariant, run) {
+export async function startFlightTest(surface, isCurrent, immersive, difficulty, carrierVariant, fighterVariant, run, audio) {
   const canvas = surface.querySelector("canvas");
   const tuning = getDifficulty(difficulty);
   const playerFighter = await loadPlayerFighter(fighterVariant);
@@ -111,7 +111,11 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
   let lastHudText;
   let lastTurnSide;
   let levelAge;
+  let introSound;
+  let arrivingJumps;
+  let chargingGuns;
   const LEVEL_TIME = 0.46;
+  const playCue = (name, position, strength) => audio?.play(name, position, strength);
 
   function setText(element, text) {
     if (element.textContent !== text) element.textContent = text;
@@ -120,6 +124,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
   function startLoop() {
     if (frame !== undefined || stopped || lost) return;
     lastTime = undefined;
+    audio?.start();
     frame = window.requestAnimationFrame(loop);
   }
 
@@ -127,6 +132,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     window.cancelAnimationFrame(frame);
     frame = undefined;
     controls.clear();
+    audio?.stop();
   }
 
   function describe(title, detail, canResume, canReset) {
@@ -198,9 +204,13 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
   }
 
   function reset() {
+    audio?.stop();
     hud["result-score"].hidden = hud["score-breakdown"].hidden = hud["score-form"].hidden = hud["save-status"].hidden = true;
     time = age = cooldown = safeTime = yaw = pitch = roll = autoBank = 0;
     introAge = battle ? 0 : 2;
+    introSound = false;
+    arrivingJumps = new WeakSet();
+    chargingGuns = new WeakSet();
     shields = tuning.shields;
     repairedShield = false;
     lastDamage = "";
@@ -258,6 +268,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     camera.fov = damp(camera.fov, boosting ? 69 : 61, 4.7, dt);
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
+    audio?.listen(camera);
   }
 
   function selectTarget() {
@@ -311,6 +322,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     if (cooldown > 0 || bolts.length > 30) return;
     cooldown = 0.17;
     stageScore.fire();
+    playCue("laser");
     ship.updateMatrixWorld(true);
     for (const [index, socket] of sockets.entries()) {
       if (socket) socket.getWorldPosition(shotFrom);
@@ -338,6 +350,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     if (hostileBolts.length >= 12) return;
     const heading = destination.clone().sub(enemy.position).normalize();
     const origin = enemy.position.clone().addScaledVector(heading, offset);
+    playCue(enemy.kind === "gun" ? "cannon" : "hostile", origin);
     hostileBolts.push({
       position: origin.clone(), enemy, origin,
       velocity: heading.clone().multiplyScalar(pace),
@@ -355,6 +368,28 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     });
     if (bursts.length === 5) bursts.shift();
     bursts.push({ age: 0, origin: position.clone(), velocity });
+  }
+
+  function aftermathBurst(position, speedLimit) {
+    showBurst(position, speedLimit);
+    playCue("breakup", position, speedLimit >= 70 ? .92 : .58);
+  }
+
+  function syncCombatCues() {
+    for (const { jump } of patrol.enemies) {
+      if (!jump.active) arrivingJumps.delete(jump);
+      else if (!arrivingJumps.has(jump) && jump.age >= JUMP_SECONDS - .083) {
+        arrivingJumps.add(jump);
+        playCue("warp", jump.origin);
+      }
+    }
+    for (const gun of carrier.guns) {
+      if (!gun.charging || !gun.model.visible) chargingGuns.delete(gun);
+      else if (!chargingGuns.has(gun)) {
+        chargingGuns.add(gun);
+        playCue("charge", gun.position);
+      }
+    }
   }
 
   function distanceToHit(center, radius) {
@@ -399,6 +434,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
         if (victim) {
           const destroyed = victim.kind === "gun" ? carrier.hitGun(victim) : patrol.hit(victim);
           if (destroyed) stageScore.kill(victim.kind);
+          playCue(destroyed ? (victim.kind === "gun" ? "turret" : "fighterDown") : "armor", victim.position);
           showBurst(victim.position, destroyed ? 46 : 12);
           blocked = true;
         }
@@ -463,7 +499,9 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
         && portHit < Math.min(nearestRock(range), carrier.distanceToHull(ray, range));
       lockHint = eligible ? (hoth ? `Locking · ${port.name}` : "Holding torpedo lock…") : trench ? "Shot blocked · Get inside the approach lights" : "Port blocked · Change your angle";
     }
+    const wasLocked = lockProgress === 1;
     lockProgress = eligible ? Math.min(1, lockProgress + dt / tuning.lock) : 0;
+    if (!wasLocked && lockProgress === 1) playCue("lock");
     if (lockProgress === 1) lockHint = hoth ? `${port.name} locked · Fire torpedo` : "Lock confirmed · Fire torpedo";
   }
 
@@ -477,6 +515,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     };
     lockProgress = 0;
     lockHint = "Torpedo away";
+    playCue("torpedo");
     hud.torpedo.disabled = true;
     hud.lock.classList.remove("is-locked");
     hud["lock-meter"].value = 0;
@@ -492,6 +531,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     if (mode !== "flying" || introAge < 2 || levelAge < LEVEL_TIME) return;
     if (maneuver.loop && trench && ship.position.y > TRENCH_HEIGHT - 65) return;
     if (!maneuver.start(canonical, Math.abs(direction) > .12 ? direction : lastTurnSide)) return;
+    playCue(maneuver.loop ? "halfLoop" : "snap");
     speed = Math.min(speed, maneuver.speed + 4);
     boosting = false;
     yaw = pitch = roll = autoBank = 0;
@@ -521,6 +561,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     const obstacle = Math.min(nearestRock(travel), carrier.distanceToHull(ray, travel));
     const contact = distanceToHit(port.position, port.radius);
     if (contact <= travel && contact < obstacle && (hoth ? hoth.canApproach(ray.origin, port) : carrier.frontFacing(ray.origin))) {
+      playCue("torpedoImpact", port.position);
       if (hoth) {
         stageScore.kill("walker");
         const finalWalker = hoth.hitPort(port, showBurst);
@@ -541,6 +582,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     } else if (obstacle <= travel || (torpedo.life -= dt) <= 0) {
       ray.at(Math.min(obstacle, travel), scratch);
       showBurst(scratch, 21);
+      playCue("missileMiss", scratch);
       torpedo = undefined;
       missed = 0.72;
     } else torpedo.position.addScaledVector(torpedo.direction, travel);
@@ -550,6 +592,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     if (safeTime > 0 || mode !== "flying") return;
     stageScore.hit();
     if (!shields) {
+      playCue("wreck");
       stageScore.finish(false);
       mode = "wreck";
       boosting = false;
@@ -561,6 +604,8 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
       return;
     }
     shields--;
+    playCue(impact ? "scrape" : shields ? "shield" : "shieldDown");
+    if (impact && !shields) playCue("shieldDown");
     lastDamage = shields ? label : "Shields down · Hull exposed";
     if (impact) speed *= 0.55;
     safeTime = 1.25;
@@ -584,7 +629,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
   function update(dt) {
     if (mode === "wreck") {
       time += dt;
-      const finished = wreck.update(dt, showBurst);
+      const finished = wreck.update(dt, aftermathBurst);
       for (const burst of bursts) burst.age += dt;
       bursts = bursts.filter(({ age: t }) => t < .75);
       if (finished) {
@@ -599,13 +644,15 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     if (mode === "cinematic") {
       time += dt;
       flyaway.update(dt);
-      if (carrier.phase !== "defeated") carrier.update(dt, ship, playerVelocity, fireHostile, showBurst);
+      if (carrier.phase !== "defeated") carrier.update(dt, ship, playerVelocity, fireHostile, aftermathBurst, playCue);
       for (const burst of bursts) burst.age += dt;
       bursts = bursts.filter(({ age: t }) => t < .75);
       if (carrier.phase === "defeated" && flyaway.age >= (trench ? 7 : 5.55)) {
         mode = "complete";
         const result = stageScore.finish(true);
         stopLoop();
+        audio?.start();
+        playCue("clear");
         describe(trench ? "Mission complete" : `Stage ${level} complete`,
           trench ? "The Death Star is destroyed. Your fighter cleared the blast."
             : hoth ? "All four walkers are down. Next: destroy the exhaust port on the Death Star."
@@ -619,11 +666,14 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
       return;
     }
     if (introAge < 2) {
+      if (!introSound && introAge < .35) introSound = Boolean(playCue("hyper"));
+      const before = introAge;
       introAge = Math.min(2, introAge + dt);
+      if (before < 1.86 && introAge >= 1.86) playCue("hyperExit");
       const shock = THREE.MathUtils.smoothstep(introAge, 1.82, 1.86) * (1 - THREE.MathUtils.smoothstep(introAge, 1.86, 2));
       camera.fov = 61 + 12 * shock;
       camera.updateProjectionMatrix();
-      if (introAge >= 1.86) battle?.update(dt, patrol, carrier, ship.position, showBurst);
+      if (introAge >= 1.86) battle?.update(dt, patrol, carrier, ship.position, aftermathBurst, playCue);
       return;
     }
     time += dt;
@@ -685,7 +735,7 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
       shields = Math.min(tuning.shields, shields + 1);
       age = 0;
     }
-    carrier.update(dt, ship, playerVelocity, fireHostile, showBurst);
+    carrier.update(dt, ship, playerVelocity, fireHostile, hoth ? aftermathBurst : showBurst, playCue);
     selectTarget();
     if (shooting) fire();
     bolts = updateBolts(dt, bolts, false);
@@ -693,9 +743,11 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
       ? ship.position.z - EXHAUST_Z <= EXHAUST_OPEN_DISTANCE && ship.position.z >= EXHAUST_Z
       : patrol.complete)) {
       carrier.start(ship.position, canonical);
+      if (!trench) playCue("bossWarp", carrier.subject);
       if (!trench) shields = Math.min(tuning.shields, shields + 1);
     }
-    battle?.update(dt, patrol, carrier, ship.position, showBurst);
+    battle?.update(dt, patrol, carrier, ship.position, aftermathBurst, playCue);
+    syncCombatCues();
     updateLock(dt);
     updateTorpedo(dt);
     if (mode === "cinematic") return;
@@ -824,6 +876,8 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     }
     if (mode === "flying" && introAge >= 2) stageScore.tick(elapsed);
     update(Math.min(0.05, elapsed));
+    audio?.listen(camera);
+    audio?.flight({ boosting, speed, snowy: Boolean(hoth), flying: mode === "flying" && introAge >= 2 });
     updateHud();
     paint();
     if (mode === "flying" || mode === "cinematic" || mode === "wreck") frame = window.requestAnimationFrame(loop);
@@ -835,8 +889,19 @@ export async function startFlightTest(surface, isCurrent, immersive, difficulty,
     if (lost || !stageScore.restart()) return;
     reset();
   }, options);
-  window.addEventListener("blur", pause, options);
-  document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); }, options);
+  function silenceBackground() {
+    audio?.stop();
+    pause();
+  }
+  function resumeCinematicSound() {
+    if (!document.hidden && (mode === "cinematic" || mode === "wreck")) audio?.start();
+  }
+  window.addEventListener("blur", silenceBackground, options);
+  window.addEventListener("focus", resumeCinematicSound, options);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) silenceBackground();
+    else resumeCinematicSound();
+  }, options);
   for (const name of ["fullscreenchange", "webkitfullscreenchange"]) {
     document.addEventListener(name, () => { if (!immersive.isActive()) pause(); }, options);
   }

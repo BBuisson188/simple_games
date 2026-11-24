@@ -1,4 +1,5 @@
 import { createImmersiveGameplay } from "./immersive-gameplay.js";
+import { createFlightAudio } from "./starfighter-3d-audio.js";
 import { askOfflineWorker } from "../offline.js";
 import { createRun, refreshScores, savedCallsign, saveRunScore, scoreSnapshot } from "./starfighter-3d-scores.js";
 
@@ -40,6 +41,7 @@ export function renderStarfighter3D() {
             </select>
           </label>
           <button class="sf3-button sf3-primary" type="button" data-sf3-start disabled>Launch Patrol</button>
+          <button class="sf3-button" type="button" data-sf3-sound aria-label="Sound effects" aria-pressed="true">Sound On</button>
           <button class="sf3-button" type="button" data-sf3-retry hidden>Retry download</button>
           <span class="sf3-status" role="status" data-sf3-status>Preparing flight files…</span>
         </div>
@@ -68,6 +70,7 @@ export function renderStarfighter3D() {
           <span>Score <strong data-sf3-score>0</strong></span>
         </div>
         <div class="sf3-hud-actions">
+          <button class="sf3-button" type="button" data-sf3-sound aria-label="Sound effects" aria-pressed="true">Sound On</button>
           <button class="sf3-button" type="button" data-sf3-pause>Pause</button>
           <button class="sf3-button" type="button" data-sf3-exit>Exit Flight</button>
         </div>
@@ -145,6 +148,14 @@ export function mountStarfighter3D(panel) {
   const scoreForm = find("score-form");
   const callsign = scoreForm.elements.namedItem("callsign");
   const saveStatus = find("save-status");
+  const audio = createFlightAudio();
+  const soundButtons = panel.querySelectorAll("[data-sf3-sound]");
+  function updateSoundButtons() {
+    for (const button of soundButtons) {
+      button.textContent = audio.enabled ? "Sound On" : "Sound Off";
+      button.setAttribute("aria-pressed", String(audio.enabled));
+    }
+  }
   const descriptions = {
     rookie: "Slower fighters, wider aim assist, and a quicker torpedo lock.",
     standard: "Faster fighters, tighter aim assist, and more return fire.",
@@ -250,6 +261,8 @@ export function mountStarfighter3D(panel) {
   async function launch(destination) {
     const advancing = typeof destination === "string";
     if (!flightModule || (!surface.hidden && !advancing) || (advancing && run?.saved)) return;
+    // iPad needs the resume request in the actual tap, before loading assets or entering fullscreen.
+    audio.unlock();
     const current = ++launchId;
     if (advancing) {
       activeFlight?.();
@@ -279,7 +292,7 @@ export function mountStarfighter3D(panel) {
     const fullscreen = immersive.isActive() ? Promise.resolve() : immersive.enter();
     try {
       const cleanup = await flightModule.startFlightTest(surface, () => launchId === current && !disposed,
-        immersive, run.difficulty, carrier.value, fighterVariant, run);
+        immersive, run.difficulty, carrier.value, fighterVariant, run, audio);
       if (launchId !== current || disposed) cleanup?.();
       else activeFlight = cleanup;
     } catch (error) {
@@ -331,9 +344,13 @@ export function mountStarfighter3D(panel) {
     try { localStorage.setItem(fighterKey, fighter.value); } catch { /* Optional preference. */ }
     updateFighterHelp();
   }, options);
+  for (const button of soundButtons) {
+    button.addEventListener("click", () => { audio.toggle(); updateSoundButtons(); }, options);
+  }
   navigator.serviceWorker?.addEventListener("controllerchange", syncOfflineLabel, options);
   updateDifficulty();
   updateFighterHelp();
+  updateSoundButtons();
   void prepare();
 
   return () => {
@@ -341,6 +358,7 @@ export function mountStarfighter3D(panel) {
     launchId++;
     events.abort();
     activeFlight?.();
+    audio.dispose();
     immersive.destroy();
   };
 }

@@ -138,6 +138,7 @@ export function createHoth(scene, tuningRate = 1) {
   }
   scene.add(battlefield.compile());
   const hit = new THREE.Vector3(), delta = new THREE.Vector3(), point = new THREE.Vector3();
+  const foot = new THREE.Vector3();
   const subject = new THREE.Vector3();
   const tracerGeometry = new THREE.BoxGeometry(...unitBox);
   const tracerMaterials = [glow("#8cecff"), glow("#ff9d62")];
@@ -227,10 +228,11 @@ export function createHoth(scene, tuningRate = 1) {
   });
   const guns = walkers.flatMap((walker) => walker.guns);
 
-  function positionWalker(walker, age) {
+  function positionWalker(walker, age, cue) {
     const { root, chassis, port, i, x, z, legs } = walker;
     const walking = walker.fall < 0;
     const advance = Math.min(130, age * (2 + i * .27));
+    const marching = walking && advance < 130;
     root.position.set(x, hothSnow(x, z + advance), z + advance);
     const cycle = age * 1.28 + i * 1.5;
     const falling = THREE.MathUtils.smoothstep(walker.fall, .18, 2.7);
@@ -239,11 +241,21 @@ export function createHoth(scene, tuningRate = 1) {
     chassis.rotation.x = falling * (i % 2 ? -.33 : .43);
     for (const { hip, knee, ankle, phase: step } of legs) {
       const stride = Math.sin(cycle + step);
-      hip.rotation.x = walking ? .23 * stride : .21 + falling * (stride > 0 ? 1 : -.65);
-      knee.rotation.x = walking ? -.24 * Math.max(0, stride) : -.65 * falling;
+      hip.rotation.x = walking ? (marching ? .23 * stride : 0) : .21 + falling * (stride > 0 ? 1 : -.65);
+      knee.rotation.x = walking ? (marching ? -.24 * Math.max(0, stride) : 0) : -.65 * falling;
       ankle.rotation.x = -(hip.rotation.x + knee.rotation.x) * .76;
     }
     root.updateMatrixWorld(true);
+    if (marching) {
+      for (const leg of legs) {
+        const lifted = Math.sin(cycle + leg.phase) > 0;
+        if (leg.lifted !== undefined && lifted !== leg.lifted && cue) {
+          leg.ankle.getWorldPosition(foot);
+          cue(lifted ? "servo" : "step", foot, .87 + walker.i * .04);
+        }
+        leg.lifted = lifted;
+      }
+    }
     port.model.getWorldPosition(port.position);
     port.velocity.set(0, 0, walking && advance < 130 ? 2 + i * .27 : 0);
     for (const gun of walker.guns) {
@@ -261,6 +273,7 @@ export function createHoth(scene, tuningRate = 1) {
     phase = "active"; remaining = walkers.length; clock = volley = finale = 0; nextVolley = .2;
     for (const walker of walkers) {
       walker.fall = -1;
+      for (const leg of walker.legs) leg.lifted = undefined;
       walker.port.model.visible = true;
       for (const gun of walker.guns) {
         gun.model.visible = true; gun.hits = gun.charging = 0;
@@ -310,7 +323,7 @@ export function createHoth(scene, tuningRate = 1) {
     return true;
   }
 
-  function update(dt, ship, velocity, fire, burst) {
+  function update(dt, ship, velocity, fire, burst, cue) {
     if (phase === "defeated") return;
     clock += dt;
     if (phase === "crashing" && (finale += dt) >= 4.8) phase = "defeated";
@@ -327,7 +340,7 @@ export function createHoth(scene, tuningRate = 1) {
         positionWalker(walker, walker.impactAge ??= clock);
         continue;
       }
-      positionWalker(walker, clock);
+      positionWalker(walker, clock, cue);
       for (const gun of walker.guns) {
         if (!gun.model.visible) continue;
         const inRange = gun.position.distanceToSquared(ship.position) < 445 ** 2;
@@ -359,10 +372,13 @@ export function createHoth(scene, tuningRate = 1) {
       tracer.to.x += 13 * Math.sin(volley * 6);
       tracer.to.y = Math.max(11, tracer.to.y + 14 * Math.cos(volley));
       tracer.age = 0; nextVolley = clock + .32;
+      cue?.("artillery", tracer.from, index % 4 === 3 ? .83 : .73);
     }
     for (const tracer of tracers) {
+      const age = tracer.age;
       tracer.age += dt;
       tracer.mesh.visible = tracer.age < 1;
+      if (age < 1 && tracer.age >= 1) cue?.("artilleryImpact", tracer.to, .67);
       if (!tracer.mesh.visible) continue;
       tracer.mesh.position.lerpVectors(tracer.from, tracer.to, tracer.age);
       delta.copy(tracer.to).sub(tracer.from).normalize();

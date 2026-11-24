@@ -377,17 +377,20 @@ export function createFleetBattle(scene, texture, playerFighter) {
     }
     mates.forEach((mate, i) => { mate.timer = .22 + i * .29; mate.down = mate.warn = -1; });
   }
+  let battleCue;
   function shoot(from, to, hostile, hit, target) {
     if (shots.length >= capacity / 2) {
       if (!hit) return;
       shots.shift();
     }
     const start = from.clone();
+    battleCue?.(hostile ? "hostile" : "allied", start, .45);
     const velocity = to.clone().sub(from).normalize();
     shots.push({ start, velocity, hostile, age: 0, length: from.distanceTo(to), hit, target,
       batch: target?.batch, member: target?.member });
   }
-  function update(dt, patrol, carrier, playerPosition, burst) {
+  function update(dt, patrol, carrier, playerPosition, burst, cue) {
+    battleCue = cue;
     clock += dt;
     wrecks.forEach(({ breakup }) => breakup.draw(clock, burst));
     const live = patrol.enemies.filter((enemy) => enemy.model.visible);
