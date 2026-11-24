@@ -45,7 +45,6 @@ const GAME_ID = "starfighter-arena";
 const globalLeaderboard = createGlobalLeaderboard({ gameId: GAME_ID, pendingKey: PENDING_GLOBAL_SCORES_KEY });
 const COUNTDOWN_TIME = 3.8;
 const EXPLOSION_SEQUENCE_TIME = 3.6;
-let currentStarfighterGame = null;
 let audioContext = null;
 let lastSelectedShip = "xwing";
 let lastSelectedDifficulty = 1;
@@ -70,7 +69,6 @@ function renderDifficultyButtons() {
 }
 
 export function renderStarfighterSinistar() {
-  if (typeof document !== "undefined") setTimeout(() => initStarfighterSinistar(), 0);
   return `
     <section class="panel game-panel star-panel">
       <div class="toolbar">
@@ -114,12 +112,10 @@ export function renderStarfighterSinistar() {
   `;
 }
 
-function initStarfighterSinistar() {
-  const root = document.querySelector(".star-game");
+export function mountStarfighterSinistar(panel) {
+  const root = panel.querySelector(".star-game");
   if (!root) return;
-  if (currentStarfighterGame) currentStarfighterGame.stop();
 
-  const panel = root.closest(".star-panel");
   const selectScreen = root.querySelector("[data-star-select]");
   const deck = root.querySelector("[data-star-deck]");
   const canvas = root.querySelector(".star-canvas");
@@ -1559,22 +1555,6 @@ function initStarfighterSinistar() {
     knob.style.transform = "translate(-50%, -50%)";
   }
 
-  currentStarfighterGame = {
-    stop() {
-      state.running = false;
-      input.fire = false;
-      input.firePointerId = null;
-      input.pointerId = null;
-      window.removeEventListener("keydown", keyDown);
-      window.removeEventListener("keyup", keyUp);
-      panel.removeEventListener("touchmove", preventMultiTouchMove);
-      panel.removeEventListener("gesturestart", preventGameplayGesture);
-      panel.removeEventListener("gesturechange", preventGameplayGesture);
-      panel.removeEventListener("gestureend", preventGameplayGesture);
-      immersive.destroy();
-    }
-  };
-
   drawShipPreviews(root);
   makeStars();
   resetLevel();
@@ -1582,6 +1562,19 @@ function initStarfighterSinistar() {
   state.mode = "select";
   deck.hidden = true;
   draw();
+  return () => {
+    state.running = false;
+    input.keys.clear();
+    input.fire = false;
+    input.firePointerId = null;
+    input.pointerId = null;
+    window.removeEventListener("keydown", keyDown);
+    window.removeEventListener("keyup", keyUp);
+    immersive.destroy();
+    const audio = audioContext;
+    audioContext = null;
+    if (audio && audio.state !== "closed") void audio.close().catch(() => {});
+  };
 }
 
 function drawShipShape(context, shipId, scale) {

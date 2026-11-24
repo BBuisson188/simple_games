@@ -3,7 +3,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
 /*
   Chomp Chase Arcade - app module.
 
-  Public entry point: renderChompChase()
+  Public entry points: renderChompChase(), mountChompChase()
 */
 
   const COLS = 21;
@@ -73,9 +73,6 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
   const STARTING_LIVES = 3;
 
   let styleInjected = false;
-  let activeChompChase = null;
-  let activeMenuCleanup = null;
-  let initTimer = 0;
 
   function injectStyles() {
     if (styleInjected) return;
@@ -354,7 +351,9 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
 
   function createAudio() {
     let ctx = null;
+    let disposed = false;
     const ensure = () => {
+      if (disposed) return null;
       if (!ctx) {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (AudioContext) ctx = new AudioContext();
@@ -379,6 +378,11 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
     };
     return {
       prime: ensure,
+      dispose() {
+        disposed = true;
+        if (ctx && ctx.state !== "closed") void ctx.close().catch(() => {});
+        ctx = null;
+      },
       dot: () => beep(760 + Math.random() * 80, 0.025, "square", 0.018),
       power: () => {
         beep(220, 0.08, "sawtooth", 0.035);
@@ -433,11 +437,12 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       this.boundKeyDown = this.handleKeyDown.bind(this);
       this.boundResize = this.resize.bind(this);
       this.boundFullscreenChange = this.handleFullscreenChange.bind(this);
+      this.boundFrame = this.loop.bind(this);
       this.renderShell();
       this.attachEvents();
       this.resize();
       this.syncUi(true);
-      this.frameId = window.requestAnimationFrame(this.loop.bind(this));
+      this.frameId = window.requestAnimationFrame(this.boundFrame);
     }
 
     renderShell() {
@@ -1269,7 +1274,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
         this.lastUiTime = time;
         this.syncUi(false);
       }
-      this.frameId = window.requestAnimationFrame(this.loop.bind(this));
+      this.frameId = window.requestAnimationFrame(this.boundFrame);
     }
 
     resize() {
@@ -1283,6 +1288,12 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       const maxByHeight = availableH * (COLS / ROWS);
       const cssW = Math.max(300, Math.min(availableW, maxByHeight));
       const cssH = cssW * (ROWS / COLS);
+      if (this.canvasCssWidth === cssW && this.canvasCssHeight === cssH && this.canvasDpr === dpr) return;
+      this.canvasCssWidth = cssW;
+      this.canvasCssHeight = cssH;
+      this.canvasDpr = dpr;
+      this.boardLayer = null;
+      this.backgroundGradient = null;
       this.canvas.style.width = `${cssW}px`;
       this.canvas.style.height = `${cssH}px`;
       this.canvas.width = Math.floor(cssW * dpr);
@@ -1294,23 +1305,31 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
     syncUi(forceOverlay = false) {
       const game = this.game;
       const level = LEVELS[game.levelIndex];
-      this.scoreEl.textContent = game.score.toLocaleString();
-      this.highEl.textContent = game.highScore.toLocaleString();
-      this.levelEl.textContent = `${game.levelIndex + 1}/5`;
-      this.livesEl.textContent = "O".repeat(Math.max(0, game.lives)) || "0";
-      this.dotsEl.textContent = String(game.pellets.size);
-      this.hudScoreEl.textContent = game.score.toLocaleString();
-      this.hudHighEl.textContent = game.highScore.toLocaleString();
-      this.hudLevelEl.textContent = `${game.levelIndex + 1}/5`;
-      this.hudLivesEl.textContent = "O".repeat(Math.max(0, game.lives)) || "0";
-      this.levelTitleEl.textContent = `${level.name}: ${level.subtitle}`;
-      this.levelDetailEl.textContent = `Enemies: ${level.enemies} - Enemy speed: ${level.enemySpeed.toFixed(2)} - Power time: ${level.powerTime.toFixed(1)}s`;
-      this.powerFillEl.style.width = `${clamp((game.powerTimer / level.powerTime) * 100, 0, 100)}%`;
+      const text = (element, value) => { if (element.textContent !== value) element.textContent = value; };
+      const score = game.score.toLocaleString(), high = game.highScore.toLocaleString();
+      const stage = `${game.levelIndex + 1}/5`, lives = "O".repeat(Math.max(0, game.lives)) || "0";
+      text(this.scoreEl, score);
+      text(this.highEl, high);
+      text(this.levelEl, stage);
+      text(this.livesEl, lives);
+      text(this.dotsEl, String(game.pellets.size));
+      text(this.hudScoreEl, score);
+      text(this.hudHighEl, high);
+      text(this.hudLevelEl, stage);
+      text(this.hudLivesEl, lives);
+      text(this.levelTitleEl, `${level.name}: ${level.subtitle}`);
+      text(this.levelDetailEl, `Enemies: ${level.enemies} - Enemy speed: ${level.enemySpeed.toFixed(2)} - Power time: ${level.powerTime.toFixed(1)}s`);
+      const power = `${clamp((game.powerTimer / level.powerTime) * 100, 0, 100)}%`;
+      if (this.lastPower !== power) {
+        this.lastPower = power;
+        this.powerFillEl.style.width = power;
+      }
 
       const showOverlay = ["title", "paused", "gameOver", "victory"].includes(game.status);
       if (forceOverlay || showOverlay !== this.overlayEl.classList.contains("cc-show")) {
         this.overlayEl.classList.toggle("cc-show", showOverlay);
       }
+      if (!showOverlay || this.overlayMode === "leaderboard") this.basicOverlay = null;
       if (this.overlayMode === "leaderboard") return;
       if (showOverlay) {
         const title = game.status === "title" ? this.options.title : game.status === "gameOver" ? "Game Over" : game.status === "victory" ? "Perfect Clear" : "Paused";
@@ -1318,8 +1337,9 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
         if (game.status === "paused") copy = "Take a breath. Press Pause, Space, or Enter to jump back in.";
         if (game.status === "gameOver") copy = `Final score: ${game.score.toLocaleString()}. Start a new run and chase the high score.`;
         if (game.status === "victory") copy = `You cleared all five levels with ${game.score.toLocaleString()} points. That is a clean run.`;
-        this.overlayTitleEl.textContent = title;
+        text(this.overlayTitleEl, title);
         if (["gameOver", "victory"].includes(game.status)) {
+          this.basicOverlay = null;
           const scoreOverlayKey = `${game.status}:${game.score}:${game.levelIndex}`;
           if (this.overlayMode === "score" && this.lastScoreOverlayKey === scoreOverlayKey) return;
           this.overlayMode = "score";
@@ -1331,7 +1351,9 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
             ? `<button type="button" class="cc-button" data-cc-show-leaderboard>Leaderboard</button><button type="button" class="cc-button" data-cc-overlay-start>New Game</button>`
             : `<button type="button" class="cc-button cc-button-primary" data-cc-show-leaderboard>Leaderboard</button><button type="button" class="cc-button" data-cc-overlay-start>New Game</button>`;
         } else {
-          this.overlayCopyEl.textContent = copy;
+          if (this.basicOverlay === game.status) return;
+          this.basicOverlay = game.status;
+          text(this.overlayCopyEl, copy);
           this.overlayActionsEl.innerHTML = `
             <button type="button" class="cc-button cc-button-primary" data-cc-overlay-start>${game.status === "title" ? "Start Game" : "New Game"}</button>
             <button type="button" class="cc-button" data-cc-overlay-resume style="${game.status === "paused" ? "" : "display:none"}">Resume</button>
@@ -1464,32 +1486,7 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
       ctx.restore();
     }
 
-    draw() {
-      if (!this.ctx || !this.canvas) return;
-      const ctx = this.ctx;
-      const width = Number.parseFloat(this.canvas.style.width) || 700;
-      const height = Number.parseFloat(this.canvas.style.height) || 760;
-      const game = this.game;
-      ctx.clearRect(0, 0, width, height);
-      const bg = ctx.createLinearGradient(0, 0, width, height);
-      bg.addColorStop(0, "#030612");
-      bg.addColorStop(0.55, "#070b22");
-      bg.addColorStop(1, "#02030b");
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, width, height);
-
-      const cell = Math.min(width / COLS, height / ROWS);
-      const boardW = cell * COLS;
-      const boardH = cell * ROWS;
-      let ox = (width - boardW) / 2;
-      let oy = (height - boardH) / 2;
-      if (game.shake > 0) {
-        const amount = game.shake * cell * 0.12;
-        ox += (Math.random() - 0.5) * amount;
-        oy += (Math.random() - 0.5) * amount;
-      }
-      const t = performance.now() / 1000;
-
+    paintBoard(ctx, ox, oy, cell, boardW, boardH) {
       ctx.save();
       roundedRect(ctx, ox - cell * 0.3, oy - cell * 0.3, boardW + cell * 0.6, boardH + cell * 0.6, cell * 0.42);
       ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
@@ -1517,6 +1514,48 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
           ctx.stroke();
         }
       }
+    }
+
+    draw() {
+      if (!this.ctx || !this.canvas) return;
+      const ctx = this.ctx;
+      const { canvasCssWidth: width, canvasCssHeight: height, canvasDpr: dpr } = this;
+      const game = this.game;
+      ctx.clearRect(0, 0, width, height);
+      if (!this.backgroundGradient) {
+        const bg = ctx.createLinearGradient(0, 0, width, height);
+        bg.addColorStop(0, "#030612");
+        bg.addColorStop(0.55, "#070b22");
+        bg.addColorStop(1, "#02030b");
+        this.backgroundGradient = bg;
+      }
+      ctx.fillStyle = this.backgroundGradient;
+      ctx.fillRect(0, 0, width, height);
+      const cell = Math.min(width / COLS, height / ROWS);
+      const boardW = cell * COLS;
+      const boardH = cell * ROWS;
+      let ox = (width - boardW) / 2;
+      let oy = (height - boardH) / 2;
+      if (game.shake > 0) {
+        const amount = game.shake * cell * 0.12;
+        ox += (Math.random() - 0.5) * amount;
+        oy += (Math.random() - 0.5) * amount;
+      }
+      const t = performance.now() / 1000;
+      const pad = Math.ceil(cell * .4 * dpr) / dpr;
+      if (!this.boardLayer) {
+        const layer = document.createElement("canvas");
+        layer.width = Math.ceil((boardW + pad * 2) * dpr);
+        layer.height = Math.ceil((boardH + pad * 2) * dpr);
+        const layerCtx = layer.getContext("2d");
+        if (layerCtx) {
+          layerCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          this.paintBoard(layerCtx, pad, pad, cell, boardW, boardH);
+          this.boardLayer = layer;
+        }
+      }
+      if (this.boardLayer) ctx.drawImage(this.boardLayer, ox - pad, oy - pad, this.boardLayer.width / dpr, this.boardLayer.height / dpr);
+      else this.paintBoard(ctx, ox, oy, cell, boardW, boardH);
 
       for (const [key, type] of game.pellets.entries()) {
         const [xRaw, yRaw] = key.split(",");
@@ -1581,6 +1620,9 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
     destroy() {
       if (this.destroyed) return;
       this.destroyed = true;
+      this.audio.dispose();
+      this.boardLayer = null;
+      this.backgroundGradient = null;
       if (this.frameId) window.cancelAnimationFrame(this.frameId);
       if (this.immersive) {
         this.immersive = false;
@@ -1597,51 +1639,15 @@ import { createGlobalLeaderboard } from "./global-leaderboard.js";
     }
   }
 
-function destroyActiveChompChase() {
-  if (initTimer) {
-    window.clearTimeout(initTimer);
-    initTimer = 0;
-  }
-  if (activeMenuCleanup) {
-    activeMenuCleanup();
-    activeMenuCleanup = null;
-  }
-  if (activeChompChase) {
-    activeChompChase.destroy();
-    activeChompChase = null;
-  }
-}
-
-function initChompChase() {
-  destroyActiveChompChase();
-  const screen = document.querySelector("[data-chomp-chase-screen]");
-  const container = document.querySelector("[data-chomp-chase-container]");
-  if (!screen || !container) return;
-
-  const cleanupOnMenu = (event) => {
-    if (!event.target.closest("[data-menu]")) return;
-    destroyActiveChompChase();
-  };
-
-  screen.addEventListener("click", cleanupOnMenu, true);
-  screen.addEventListener("pointerdown", cleanupOnMenu, true);
-  activeMenuCleanup = () => {
-    screen.removeEventListener("click", cleanupOnMenu, true);
-    screen.removeEventListener("pointerdown", cleanupOnMenu, true);
-  };
-
-  activeChompChase = new ChompChaseInstance(container, {
+export function mountChompChase(screen) {
+  const game = new ChompChaseInstance(screen.querySelector("[data-chomp-chase-container]"), {
     showExitButton: false,
     title: "Chomp Chase"
   });
+  return () => game.destroy();
 }
 
 export function renderChompChase() {
-  if (typeof window !== "undefined") {
-    destroyActiveChompChase();
-    initTimer = window.setTimeout(initChompChase, 0);
-  }
-
   return `
     <section class="panel game-panel" data-chomp-chase-screen>
       <div class="toolbar">

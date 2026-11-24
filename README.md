@@ -12,7 +12,7 @@ A tiny offline-capable mini-games web app for iPhone, iPad, and GitHub Pages.
 - Starfighter Arena with ship choices, difficulty modes, enemy waves, bosses, scoring, leaderboard, and canvas-drawn ships.
 - Chomp Chase with local high score, local leaderboard, and global leaderboard sync.
 - Installable web app support through `manifest.json`.
-- Offline support through a service worker after one successful online load.
+- Opt-in offline support through **Prepare offline**. The last complete package stays playable if an update is interrupted.
 
 ## File Structure
 
@@ -70,7 +70,7 @@ That starts a local server and opens the app at `http://localhost:8000`.
 - Pick a game from the main menu.
 - Use each game's on-screen controls on touch devices.
 - Mad Libs history and game leaderboard data are saved locally in the browser.
-- To test offline mode, load the app once online, then use the browser or Home Screen app while offline.
+- To test offline mode, choose **Prepare offline** while online, wait for **Ready for offline use**, then reopen while offline. On a new release, reopen online to prepare the latest version; an interrupted update leaves the last complete version available offline.
 
 ## Leaderboards
 
@@ -127,5 +127,5 @@ This project uses relative paths like `./app.js`, which keeps it compatible with
 - Run the Starfighter 3D scoring and trench wave tests with `node --test tests/starfighter-3d.test.mjs` (Node.js 24).
 - Change layout, colors, and responsive styling in `styles.css`.
 - Add new local images, sounds, or other files inside `assets/`, then add those paths to `service-worker.js`.
-- When cached files change, update both the app version in `app.js` and the cache name in `service-worker.js`.
+- When cached files change, update `APP_VERSION` in `app.js` and `VERSION` in `service-worker.js`. Put the output of `node tools/offline-manifest.mjs` in `offline-manifest.json` after finalizing the assets, then run `node tools/offline-manifest.mjs --check`. The worker reuses unchanged files and only marks the new package ready after verifying its files against this inventory.
 - Firebase SDK imports are mapped in `index.html` with an import map. Avoid adding other CDN scripts, web fonts, remote images, remote sounds, or analytics unless an offline plan is added.

@@ -1,12 +1,12 @@
 import { renderMadLibs } from "./games/mad-libs.js";
 import { mountAirplaneShooter, renderAirplaneShooter } from "./games/airplane-shooter.js";
-import { renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
-import { renderChompChase } from "./games/chomp_chase_game.js";
+import { mountStarfighterSinistar, renderStarfighterSinistar } from "./games/starfighter-sinistar.js";
+import { mountChompChase, renderChompChase } from "./games/chomp_chase_game.js";
 import { mountPineRidgeRun, renderPineRidgeRun } from "./games/pine-ridge-run.js";
 import { mountStarfighter3D, renderStarfighter3D } from "./games/starfighter-3d-entry.js";
 import { askOfflineWorker } from "./offline.js";
 
-const APP_VERSION = "v97";
+const APP_VERSION = "v98";
 const ACTIVE_GAME_KEY = "miniGames.activeGame";
 const app = document.querySelector("#app");
 const offlineStatus = document.querySelector("#offlineStatus");
@@ -62,7 +62,8 @@ const games = [
     title: "Starfighter Arena",
     subtitle: "Sinistar-style space battle",
     graphic: "./assets/menu/starfighter.jpg",
-    render: renderStarfighterSinistar
+    render: renderStarfighterSinistar,
+    mount: mountStarfighterSinistar
   },
   {
     id: "starfighter-3d",
@@ -77,7 +78,8 @@ const games = [
     title: "Chomp Chase",
     subtitle: "Maze chase arcade",
     graphic: "./assets/menu/chomp-chase.jpg",
-    render: renderChompChase
+    render: renderChompChase,
+    mount: mountChompChase
   },
   {
     id: "pine-ridge-run",
