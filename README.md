@@ -86,6 +86,7 @@ Each Firestore score document contains exactly `playerName`, `score`, `gameId`, 
 | Starfighter Arena | `starfighter-arena` | `leaderboards/starfighter-arena/scores` | `miniGames.starfighterArenaLeaderboard`, `.difficulty2`, `.difficulty3` | `miniGames.starfighterArenaPendingGlobalScores` |
 | Chomp Chase | `chomp-chase` | `leaderboards/chomp-chase/scores` | `chomp-chase-leaderboard` | `chomp-chase-pending-global-scores` |
 | Starfighter 3D | `starfighter-3d-rookie`, `starfighter-3d-standard`, `starfighter-3d-ace` | `leaderboards/{gameId}/scores` | `miniGames.starfighter3D.{difficulty}.local` | `miniGames.starfighter3D.{difficulty}.pending` |
+| Pine Ridge Run | `pine-ridge-run-summit`, `pine-ridge-run-timber`, `pine-ridge-run-blue` | `leaderboards/{gameId}/scores` | `miniGames.pineRidge.{trail}.recent` | `miniGames.pineRidge.{trail}.pending` |
 
 Each pending sync key also has a `.globalCache` companion key that stores the last known Firestore top 10 for offline display. Additional local keys: Starfighter saves the last player name at `miniGames.starfighterArenaLastName`; Chomp Chase saves its high score and last player name at `chomp-chase-high-score` and `chomp-chase-player-name`.
 

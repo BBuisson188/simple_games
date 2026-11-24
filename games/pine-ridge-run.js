@@ -1,8 +1,15 @@
 import { createImmersiveGameplay } from "./immersive-gameplay.js";
+import { createGlobalLeaderboard } from "./global-leaderboard.js";
 import { COURSES, clamp, courseFeatures, mix } from "./pine-ridge-course.js";
 import { createSlopeView } from "./pine-ridge-view.js";
 
 const RECORDS_KEY = "miniGames.pineRidge.courseRecords";
+const CALLSIGN_KEY = "miniGames.pineRidge.callsign";
+const recentKey = (id) => `miniGames.pineRidge.${id}.recent`;
+const boards = Object.fromEntries(Object.keys(COURSES).map((id) => [id, createGlobalLeaderboard({
+  gameId: `pine-ridge-run-${id}`,
+  pendingKey: `miniGames.pineRidge.${id}.pending`
+})]));
 const STEER_KEYS = ["ArrowLeft", "ArrowRight", "KeyA", "KeyD"];
 const BRAKE_KEYS = ["ArrowDown", "KeyS"];
 const HOP_AIR = 0.90;
@@ -49,9 +56,18 @@ export function renderPineRidgeRun() {
         <p data-pine-tip></p>
         <div class="pine-launch">
           <button class="pine-primary" type="button" data-pine-start>Start Run</button>
+          <button class="pine-secondary" type="button" data-pine-show-board aria-expanded="false" aria-controls="pine-global-board">Leaderboard</button>
           <span>Trail best <strong data-pine-best>0</strong></span>
         </div>
         <p class="pine-help">Drag or use ← → to steer. Space jumps, ↓ brakes, and Z X C perform tricks in the air.</p>
+        <section class="pine-board" id="pine-global-board" data-pine-board aria-labelledby="pine-board-title" hidden>
+          <h3 id="pine-board-title" data-pine-board-title tabindex="-1"></h3>
+          <p data-pine-board-status role="status"></p>
+          <table class="pine-score-table" aria-labelledby="pine-board-title" hidden>
+            <thead><tr><th scope="col">Rank</th><th scope="col">Callsign</th><th scope="col">Score</th></tr></thead>
+            <tbody data-pine-rows></tbody>
+          </table>
+        </section>
       </div>
     </div>
     <div class="pine-play" data-pine-play hidden>
@@ -88,6 +104,11 @@ export function renderPineRidgeRun() {
         <div class="pine-dialog" role="group" aria-labelledby="pine-result-title">
           <h3 id="pine-result-title" data-pine-heading></h3>
           <p data-pine-detail></p>
+          <form class="pine-save-form" data-pine-save hidden>
+            <label>Callsign <input name="callsign" maxlength="16" required autocomplete="nickname" placeholder="Your name"></label>
+            <button class="pine-primary" type="submit">Save Score</button>
+          </form>
+          <p data-pine-save-error role="status" hidden></p>
           <div class="pine-result-actions">
             <button class="pine-primary" type="button" data-pine-resume>Resume Run</button>
             <button class="pine-primary" type="button" data-pine-retry>Race Again</button>
@@ -120,6 +141,13 @@ export function mountPineRidgeRun(root) {
   const overlay = find("overlay");
   const resumeButton = find("resume");
   const retryButton = find("retry");
+  const board = find("board");
+  const boardButton = find("show-board");
+  const boardTitle = find("board-title");
+  const scoreTable = board.querySelector("table");
+  const scoreForm = find("save");
+  const callsign = scoreForm.elements.namedItem("callsign");
+  const saveError = find("save-error");
   let courseId = "summit";
   let mode = "ready";
   let run;
@@ -131,6 +159,8 @@ export function mountPineRidgeRun(root) {
   let brakePointer = null;
   let disposed = false;
   let countdown;
+  let finalScore;
+  let boardRequest = 0;
   let message = { text: "", seconds: 0 };
 
   function listen(element, type, handler) {
@@ -149,6 +179,61 @@ export function mountPineRidgeRun(root) {
       ? "Thread the gates for a streak and land tricks for bonus points. Use a blue ramp for backflips."
       : "Brake before tight gates so you have room to change direction. Use a blue ramp for backflips.");
     for (const button of courseButtons) button.setAttribute("aria-pressed", button.dataset.pineCourse === id);
+    if (!board.hidden && mode === "ready") void loadBoard();
+  }
+
+  function recentScore(id) {
+    try { return JSON.parse(localStorage.getItem(recentKey(id))); } catch { return null; }
+  }
+
+  function renderBoard(id, scores, state, recent, pending) {
+    const recentIndex = recent ? scores.findIndex((entry) => entry.id === recent.id
+      || (!entry.pending && entry.name === recent.name && entry.score === recent.score)) : -1;
+    text(boardTitle, `${COURSES[id].name} · Global Top 10`);
+    const note = state === "loading" ? "Checking global scores…"
+      : state === "offline" ? "Offline · showing saved scores."
+        : state === "unavailable" ? "Global leaderboard unavailable · showing saved scores."
+          : scores.length ? "Worldwide scores" : "No global scores yet.";
+    const recentNote = !recent ? "" : state === "live" && recentIndex >= 0
+      ? ` Your ${recent.score.toLocaleString()} points ranked #${recentIndex + 1}.`
+      : pending ? " Your score is saved on this device and awaiting sync."
+        : state === "live" ? ` Your ${recent.score.toLocaleString()} points did not make the global top 10.` : "";
+    text(find("board-status"), note + recentNote);
+    scoreTable.hidden = !scores.length;
+    find("rows").replaceChildren(...scores.map((entry, index) => {
+      const row = document.createElement("tr");
+      if (index === recentIndex) row.classList.add("is-recent");
+      const rank = entry.pending ? "Pending" : state === "live" ? String(index + 1) : "—";
+      for (const value of [rank, entry.name + (index === recentIndex ? " (your score)" : ""), entry.score.toLocaleString()]) {
+        row.insertCell().textContent = value;
+      }
+      return row;
+    }));
+  }
+
+  async function loadBoard() {
+    const id = courseId;
+    const service = boards[id];
+    const request = ++boardRequest;
+    const recent = recentScore(id);
+    const pending = () => recent && service.getPendingScores().some((entry) => entry.id === recent.id);
+    const current = () => !disposed && request === boardRequest && mode === "ready" && !board.hidden;
+    renderBoard(id, service.getDisplayScores(), navigator.onLine ? "loading" : "offline", recent, pending());
+    if (!navigator.onLine) return;
+    try {
+      await service.syncPendingScores();
+      const scores = await service.getGlobalScores();
+      if (current()) renderBoard(id, scores, "live", recent, pending());
+    } catch {
+      if (current()) renderBoard(id, service.getDisplayScores(), "unavailable", recent, pending());
+    }
+  }
+
+  function openBoard() {
+    board.hidden = false;
+    boardButton.setAttribute("aria-expanded", "true");
+    void loadBoard();
+    boardTitle.focus();
   }
 
   function stopLoop() {
@@ -174,6 +259,8 @@ export function mountPineRidgeRun(root) {
 
   function start() {
     stopLoop();
+    finalScore = undefined;
+    boardRequest++;
     const course = COURSES[courseId];
     const features = courseFeatures(course);
     run = {
@@ -209,6 +296,8 @@ export function mountPineRidgeRun(root) {
     text(find("detail"), detail);
     resumeButton.hidden = !paused;
     retryButton.hidden = paused;
+    scoreForm.hidden = true;
+    saveError.hidden = true;
     overlay.hidden = false;
     hud.callout.hidden = true;
     airPanel.hidden = true;
@@ -223,13 +312,17 @@ export function mountPineRidgeRun(root) {
     showOverlay("Paused", `${run.course.name} · ${Math.floor(run.distance)} m downhill`, true);
   }
 
-  function exit() {
+  function exit({ showLeaderboard = false } = {}) {
     mode = "ready";
     stopLoop();
     void immersive.exit();
     play.hidden = true;
     setup.hidden = false;
-    startButton.focus({ preventScroll: true });
+    if (showLeaderboard) openBoard();
+    else {
+      startButton.focus({ preventScroll: true });
+      if (!board.hidden) void loadBoard();
+    }
   }
 
   function score() {
@@ -241,7 +334,7 @@ export function mountPineRidgeRun(root) {
     stopLoop();
     const completed = run.distance >= run.course.length && run.lives > 0;
     if (completed) run.points += 250 + run.lives * 100;
-    const finalScore = score();
+    finalScore = score();
     const newBest = finalScore > (records[courseId] || 0);
     if (newBest) {
       records[courseId] = finalScore;
@@ -257,6 +350,10 @@ export function mountPineRidgeRun(root) {
     const tricks = `${run.tricksLanded} landed ${run.tricksLanded === 1 ? "trick" : "tricks"}`;
     showOverlay(completed ? "You reached the lodge" : "Run over",
       `${finalScore.toLocaleString()} points · ${gates} · ${tricks}${newBest ? " · New trail best" : ""}`, false);
+    if (finalScore > 0) {
+      try { callsign.value = localStorage.getItem(CALLSIGN_KEY) || ""; } catch { callsign.value = ""; }
+      scoreForm.hidden = false;
+    }
   }
 
   function flash(label, seconds = 1.1) {
@@ -431,6 +528,40 @@ export function mountPineRidgeRun(root) {
   listen(find("pause"), "click", pause);
   listen(find("exit"), "click", exit);
   listen(find("select"), "click", exit);
+  listen(boardButton, "click", () => {
+    if (board.hidden) openBoard();
+    else {
+      board.hidden = true;
+      boardButton.setAttribute("aria-expanded", "false");
+      boardRequest++;
+    }
+  });
+  for (const event of ["online", "offline"]) {
+    listen(window, event, () => { if (mode === "ready" && !board.hidden) void loadBoard(); });
+  }
+  listen(scoreForm, "submit", (event) => {
+    event.preventDefault();
+    if (mode !== "finished" || scoreForm.hidden || !(finalScore > 0)) return;
+    const name = callsign.value.trim().slice(0, 16);
+    if (!name) {
+      callsign.value = "";
+      callsign.reportValidity();
+      return;
+    }
+    const id = courseId;
+    try {
+      localStorage.setItem(CALLSIGN_KEY, name);
+      const entry = boards[id].queueScore(name, finalScore);
+      localStorage.setItem(recentKey(id), JSON.stringify(entry));
+    } catch {
+      text(saveError, "Could not save this score on your device. Check browser storage and try again.");
+      saveError.hidden = false;
+      return;
+    }
+    finalScore = undefined;
+    scoreForm.hidden = true;
+    exit({ showLeaderboard: true });
+  });
   listen(window, "blur", pause);
   listen(document, "visibilitychange", () => { if (document.hidden) pause(); });
   const observer = new ResizeObserver(() => { if (run && !play.hidden) view.draw(run); });

@@ -981,6 +981,7 @@ select {
   inset: 0;
   display: grid;
   place-items: center;
+  grid-template-rows: minmax(0, 1fr);
   background: #122b39a6;
   padding: 14px;
 }
@@ -989,6 +990,8 @@ select {
   width: min(390px, 100%);
   max-height: 100%;
   overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   padding: clamp(16px, 4vw, 28px);
   border: 1px solid #759099;
   border-radius: 14px;
@@ -1006,6 +1009,53 @@ select {
 .pine-result-actions {
   justify-content: center;
 }
+
+.pine-save-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.pine-save-form label { flex: 1 1 120px; min-width: 0; text-align: left; }
+
+.pine-save-form input {
+  display: block;
+  width: 100%;
+  min-height: 45px;
+  padding: 8px;
+  margin-top: 3px;
+  border: 1px solid #759099;
+  border-radius: 8px;
+  background: #0b2029;
+  color: #f7f2e5;
+  font-size: 16px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.pine-board {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid #597684;
+  border-radius: 10px;
+  background: #132e3b;
+  color: #f7f2e5;
+}
+
+.pine-board h3 { margin: 0 0 8px; }
+.pine-board p { margin: 0 0 8px; color: #dae7e5; }
+.pine-score-table { width: 100%; border-collapse: collapse; }
+.pine-score-table :is(th, td) {
+  padding: 7px 5px;
+  border-bottom: 1px solid #567482;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.pine-score-table :is(th, td):last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.pine-score-table tr.is-recent { background: #f4b771; color: #202c36; font-weight: 800; }
 
 @media (max-width: 480px) {
   .pine-courses { grid-template-columns: 1fr; }

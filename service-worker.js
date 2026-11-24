@@ -1,4 +1,4 @@
-const CACHE_NAME = "mini-games-v93";
+const CACHE_NAME = "mini-games-v94";
 const flightPaths = ["./games/starfighter-3d/", "./assets/starfighter-3d/"]
   .map((path) => new URL(path, self.registration.scope).pathname);
 
