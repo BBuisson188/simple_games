@@ -2341,6 +2341,27 @@ select {
 
 .sf3-intro [data-sf3-difficulty-help] { margin: 9px 0 0; }
 
+.sf3-leaderboard {
+  max-width: 500px;
+  margin-top: 18px;
+  padding: 0 14px;
+  border: 1px solid var(--sf3-line);
+  border-radius: 10px;
+  background: #111e32;
+}
+
+.sf3-leaderboard summary {
+  min-height: 44px;
+  padding-block: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.sf3-leaderboard h4 { margin: 0 0 5px; }
+.sf3-leaderboard ol { padding-inline-start: 1.6em; }
+.sf3-leaderboard ol:empty { display: none; }
+.sf3-leaderboard li { padding: 3px 0; overflow-wrap: anywhere; }
+
 .sf3-button {
   min-height: 44px;
   padding: 8px 13px;
@@ -2662,12 +2683,17 @@ select {
   inset: 0;
   display: grid;
   place-items: center;
+  grid-template-rows: minmax(0, 1fr);
   padding: 63px 14px 14px;
   background: #06111bc2;
 }
 
 .sf3-dialog {
   width: min(100%, 410px);
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   padding: clamp(14px, 3.6vw, 26px);
   border-radius: 13px;
   border: 1px solid var(--sf3-line);
@@ -2675,6 +2701,60 @@ select {
 }
 
 .sf3-dialog p { color: var(--sf3-muted); }
+
+.sf3-dialog [data-sf3-result-score] {
+  margin: 5px 0 9px;
+  color: var(--sf3-ink);
+  font-weight: 800;
+}
+
+.sf3-score-breakdown {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin: 8px 0;
+  column-gap: 12px;
+  row-gap: 2px;
+  font-size: .83rem;
+}
+
+.sf3-score-breakdown dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.sf3-score-breakdown :is(dt:nth-last-child(2), dd:last-child) {
+  margin-top: 3px;
+  padding-top: 4px;
+  border-top: 1px solid var(--sf3-line);
+  font-weight: 800;
+}
+
+.sf3-score-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.sf3-score-form label { flex: 1 1 140px; min-width: 0; font-size: .86rem; }
+.sf3-score-form input {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 3px;
+  padding: 7px 10px;
+  border: 1px solid #68879ca8;
+  border-radius: 9px;
+  background: #0b1728;
+  color: var(--sf3-ink);
+  font-size: 16px;
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+@media (max-height: 440px) {
+  .sf3-overlay { padding: 52px 12px 6px; }
+  .sf3-dialog h3, .sf3-dialog p { margin-block: 0 5px; }
+  .sf3-dialog { padding: 10px 14px; }
+}
 
 @media (max-width: 580px) {
   .sf3-readouts span { min-width: 0; padding-inline: 5px; }

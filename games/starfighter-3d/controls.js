@@ -18,7 +18,9 @@ export function createFlightControls(surface, signal, onPause) {
 
   // Only the flight surface captures these browser gestures. Briefing and arcade menus stay native.
   for (const name of ["contextmenu", "selectstart", "dragstart", "dblclick"]) {
-    listen(surface, name, suppress, { capture: true });
+    listen(surface, name, (event) => {
+      if (!event.target.closest?.("[data-sf3-score-form] input")) suppress(event);
+    }, { capture: true });
   }
 
   function centerStick() {
@@ -110,6 +112,7 @@ export function createFlightControls(surface, signal, onPause) {
 
   listen(window, "keydown", (event) => {
     if (event.metaKey || event.ctrlKey || event.altKey || surface.hidden) return;
+    if (event.target.closest?.("[data-sf3-score-form] input")) return;
     if ((event.code === "Escape" || event.code === "KeyP") && !event.repeat) {
       onPause();
     } else if (FLIGHT_KEYS.has(event.code) && !(event.code === "Space" && event.target.closest?.("button"))) {

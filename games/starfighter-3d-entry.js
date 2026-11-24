@@ -1,5 +1,6 @@
 import { createImmersiveGameplay } from "./immersive-gameplay.js";
 import { askOfflineWorker } from "../offline.js";
+import { createRun, refreshScores, savedCallsign, saveRunScore, scoreSnapshot } from "./starfighter-3d-scores.js";
 
 const FLIGHT_CACHE_PREFIX = "mini-games-starfighter-3d-";
 
@@ -12,7 +13,7 @@ export function renderStarfighter3D() {
       </div>
       <div class="sf3-intro">
         <h3>Choose a level</h3>
-        <p>Fly three stages, from Verdant Orbit to the Death Star trench. Start at Stage 1 to fly them in order, or pick a later stage to test it directly.</p>
+        <p>Start at Stage 1 for a ranked run through all three stages. Direct starts and retries at later stages are practice.</p>
         <p class="sf3-controls-copy">Touch: drag the stick to steer. Hold Fire or Boost with your right thumb.<br>
           Keyboard: arrows or WASD to steer, Q/E to roll, Space to fire, Shift to boost, T to launch a locked torpedo.</p>
         <div class="sf3-start-row">
@@ -41,6 +42,13 @@ export function renderStarfighter3D() {
           <span class="sf3-status" role="status" data-sf3-status>Preparing flight files…</span>
         </div>
         <p id="sf3-difficulty-help" class="sf3-controls-copy" data-sf3-difficulty-help></p>
+        <details class="sf3-leaderboard" data-sf3-leaderboard>
+          <summary>Global leaderboard</summary>
+          <h4 data-sf3-board-title></h4>
+          <p class="sf3-controls-copy" data-sf3-board-status role="status"></p>
+          <ol data-sf3-board-list aria-label="Top 10 scores"></ol>
+          <p class="sf3-controls-copy" data-sf3-personal-best hidden></p>
+        </details>
       </div>
     </div>
     <div class="sf3-flight" data-sf3-flight hidden>
@@ -54,6 +62,7 @@ export function renderStarfighter3D() {
           <span data-sf3-wingmen hidden>Wingmen <strong data-sf3-allies>7</strong><small data-sf3-wing-skill></small></span>
           <span>Target <strong data-sf3-range>—</strong></span>
           <span>Speed <strong data-sf3-speed>—</strong></span>
+          <span>Score <strong data-sf3-score>0</strong></span>
         </div>
         <div class="sf3-hud-actions">
           <button class="sf3-button" type="button" data-sf3-pause>Pause</button>
@@ -79,8 +88,15 @@ export function renderStarfighter3D() {
         <div class="sf3-dialog">
           <h3 data-sf3-heading>Launching fighter</h3>
           <p data-sf3-detail>Preparing the asteroid belt…</p>
+          <dl class="sf3-score-breakdown" data-sf3-score-breakdown aria-label="Score breakdown" hidden></dl>
+          <p data-sf3-result-score hidden></p>
+          <form class="sf3-score-form" data-sf3-score-form hidden>
+            <label>Callsign <input name="callsign" maxlength="16" required autocomplete="nickname" placeholder="Your name"></label>
+            <button class="sf3-button" type="submit">Save score</button>
+          </form>
+          <p data-sf3-save-status role="status" hidden></p>
           <button class="sf3-button sf3-primary" type="button" data-sf3-resume hidden>Resume Flight</button>
-          <button class="sf3-button sf3-primary" type="button" data-sf3-reset hidden>Restart Stage</button>
+          <button class="sf3-button sf3-primary" type="button" data-sf3-reset hidden>Retry Stage</button>
           <button class="sf3-button sf3-primary" type="button" data-sf3-next hidden>Jump to next stage</button>
         </div>
       </div>
@@ -118,6 +134,10 @@ export function mountStarfighter3D(panel) {
   const difficulty = find("difficulty");
   const carrier = find("carrier");
   const fighter = find("fighter");
+  const leaderboard = find("leaderboard");
+  const scoreForm = find("score-form");
+  const callsign = scoreForm.elements.namedItem("callsign");
+  const saveStatus = find("save-status");
   const descriptions = {
     rookie: "Slower fighters, wider aim assist, and a quicker torpedo lock.",
     standard: "Faster fighters, tighter aim assist, and more return fire.",
@@ -133,6 +153,7 @@ export function mountStarfighter3D(panel) {
   function updateDifficulty() {
     find("difficulty-help").textContent = descriptions[difficulty.value];
     try { localStorage.setItem(difficultyKey, difficulty.value); } catch { /* Optional preference. */ }
+    if (leaderboard.open) void loadBoard();
   }
   const immersive = createImmersiveGameplay(surface, { orientation: "landscape" });
   const events = new AbortController();
@@ -141,6 +162,38 @@ export function mountStarfighter3D(panel) {
   let flightModule;
   let activeFlight;
   let launchId = 0;
+  let boardRequest = 0;
+  let run;
+
+  function renderBoard(boardDifficulty, { scores, pending, best, source }, loading = false) {
+    const label = boardDifficulty[0].toUpperCase() + boardDifficulty.slice(1);
+    find("board-title").textContent = `${label} · Top 10`;
+    find("board-status").textContent = !navigator.onLine ? "Offline · showing saved scores"
+      : loading ? "Checking global scores…"
+        : source !== "global" ? "Global leaderboard unavailable · showing saved scores"
+          : scores.some((entry) => !entry.pending) ? "Worldwide scores" : "No global scores yet";
+    if (pending.length) find("board-status").textContent += ` · ${pending.length} awaiting sync`;
+    const list = find("board-list");
+    list.replaceChildren(...scores.map((entry) => {
+      const row = document.createElement("li");
+      row.textContent = `${entry.name} · ${entry.score.toLocaleString()}${entry.pending ? " (pending)" : ""}`;
+      return row;
+    }));
+    const personalBest = find("personal-best");
+    personalBest.hidden = !best;
+    personalBest.textContent = best ? `Best on this device: ${best.toLocaleString()}` : "";
+  }
+
+  async function loadBoard() {
+    const boardDifficulty = difficulty.value;
+    const request = ++boardRequest;
+    const current = () => request === boardRequest && !disposed && leaderboard.open;
+    if (!current()) return;
+    renderBoard(boardDifficulty, scoreSnapshot(boardDifficulty), navigator.onLine);
+    if (!navigator.onLine) return;
+    const result = await refreshScores(boardDifficulty);
+    if (current()) renderBoard(boardDifficulty, result);
+  }
 
   async function syncOfflineLabel() {
     if (!flightModule || disposed) return;
@@ -176,6 +229,9 @@ export function mountStarfighter3D(panel) {
     void immersive.exit();
     surface.hidden = true;
     brief.hidden = false;
+    if (leaderboard.open) void loadBoard();
+    else if (run?.saved) leaderboard.open = true;
+    if (run?.ranked) carrier.value = "ironwake";
     start.focus({ preventScroll: true });
   }
 
@@ -187,6 +243,8 @@ export function mountStarfighter3D(panel) {
       activeFlight?.();
       activeFlight = undefined;
       carrier.value = destination;
+    } else {
+      run = createRun(difficulty.value, carrier.value === "ironwake");
     }
     const fighterVariant = fighter.value;
     const fighterName = fighter.selectedOptions[0].textContent;
@@ -200,10 +258,15 @@ export function mountStarfighter3D(panel) {
     find("resume").hidden = true;
     find("reset").hidden = true;
     find("next").hidden = true;
+    find("result-score").hidden = true;
+    find("score-breakdown").hidden = true;
+    scoreForm.hidden = true;
+    saveStatus.hidden = true;
+    callsign.value = savedCallsign();
     const fullscreen = immersive.isActive() ? Promise.resolve() : immersive.enter();
     try {
       const cleanup = await flightModule.startFlightTest(surface, () => launchId === current && !disposed,
-        immersive, difficulty.value, carrier.value, fighterVariant);
+        immersive, run.difficulty, carrier.value, fighterVariant, run);
       if (launchId !== current || disposed) cleanup?.();
       else activeFlight = cleanup;
     } catch (error) {
@@ -225,6 +288,31 @@ export function mountStarfighter3D(panel) {
     else if (destination === "longbow" || destination === "trench") void launch(destination);
   }, options);
   retry.addEventListener("click", prepare, options);
+  leaderboard.addEventListener("toggle", () => { if (leaderboard.open) void loadBoard(); }, options);
+  window.addEventListener("online", () => void loadBoard(), options);
+  window.addEventListener("offline", () => void loadBoard(), options);
+  scoreForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (scoreForm.hidden) return;
+    if (!callsign.value.trim()) {
+      callsign.value = "";
+      callsign.reportValidity();
+      return;
+    }
+    const finishedRun = run;
+    let entry;
+    try {
+      entry = saveRunScore(finishedRun, callsign.value);
+    } catch {
+      saveStatus.hidden = false;
+      saveStatus.textContent = "Could not save on this device. Check your browser’s storage settings and try again.";
+      return;
+    }
+    if (!entry) return;
+    scoreForm.hidden = find("reset").hidden = true;
+    if (navigator.onLine) void refreshScores(finishedRun.difficulty);
+    brief.querySelector("[data-menu]").click();
+  }, options);
   difficulty.addEventListener("change", updateDifficulty, options);
   fighter.addEventListener("change", () => {
     try { localStorage.setItem(fighterKey, fighter.value); } catch { /* Optional preference. */ }

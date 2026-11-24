@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { EXHAUST_Z, TRENCH_HEIGHT, TRENCH_QUOTA } from "./trench.js";
 
 const FORWARD = new THREE.Vector3(0, 0, -1);
 const UP = new THREE.Vector3(0, 1, 0);
@@ -25,13 +26,21 @@ export const JUMP_AFTERGLOW = 0.29;
 export const FIGHTER_TOTAL = FORMATIONS.reduce((sum, formation) => sum + formation.length, 0);
 export const FIGHTER_POOL = 1 + Math.max(...FORMATIONS.map((formation) => formation.length));
 export const FLEET_FIGHTER_POOL = FLEET_FORMATIONS[0].length;
+export const TRENCH_FIGHTER_POOL = 10;
+const TRENCH_THRESHOLDS = [1700, 1400, 1100];
+const TRENCH_WAVES = [
+  [[-70, 24, -295], [74, 38, -325]],
+  [[-92, 52, -270], [109, 17, -330]],
+  [[88, 49, -266], [-114, 21, -322]],
+  [[-75, 34, -260], [84, 20, -315], [-153, 64, -317], [153, 88, -350]]
+];
 export const CHARGE_TIME = 0.63;
 export const FIGHTER_RADIUS = 6.15;
 
 const DIFFICULTIES = {
-  rookie: { pace: [17, 25], limit: [40, 46], weave: 0.53, rate: 1.3, lead: 0.31, aim: 14, armor: 0, lock: 0.70, lockAngle: 17, shields: 3 },
-  standard: { pace: [24, 34], limit: [47, 56], weave: 0.75, rate: 1, lead: 0.45, aim: 11, armor: 1, lock: 0.91, lockAngle: 14, shields: 3 },
-  ace: { pace: [35, 46], limit: [53, 67], weave: 1.08, rate: 0.76, lead: 0.62, aim: 8, armor: 1, lock: 1.10, lockAngle: 11, shields: 3 }
+  rookie: { trenchExtra: 0, pace: [17, 25], limit: [40, 46], weave: 0.53, rate: 1.3, lead: 0.31, aim: 14, armor: 0, lock: 0.70, lockAngle: 17, shields: 3 },
+  standard: { trenchExtra: 1, pace: [24, 34], limit: [47, 56], weave: 0.75, rate: 1, lead: 0.45, aim: 11, armor: 1, lock: 0.91, lockAngle: 14, shields: 3 },
+  ace: { trenchExtra: 2, pace: [35, 46], limit: [53, 67], weave: 1.08, rate: 0.76, lead: 0.62, aim: 8, armor: 1, lock: 1.10, lockAngle: 11, shields: 3 }
 };
 
 export function getDifficulty(name) {
@@ -39,7 +48,8 @@ export function getDifficulty(name) {
 }
 
 export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = false, trench = false) {
-  const formations = fleet ? FLEET_FORMATIONS : FORMATIONS;
+  const formations = trench ? [...TRENCH_WAVES.slice(0, -1), TRENCH_WAVES.at(-1).slice(0, 2 + tuning.trenchExtra)]
+    : fleet ? FLEET_FORMATIONS : FORMATIONS;
   const total = formations.reduce((count, formation) => count + formation.length, 0);
   const enemies = models.map((model, slot) => ({
     model, slot, silhouette, position: model.position, velocity: new THREE.Vector3(), heading: new THREE.Vector3(),
@@ -60,6 +70,8 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
   const relative = new THREE.Vector3();
   const turn = new THREE.Quaternion();
   const rotation = new THREE.Quaternion();
+  const trenchOrientation = new THREE.Quaternion();
+  let closestTrenchDistance;
   let batch;
   let ordered;
   let nextJump;
@@ -71,12 +83,13 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
   function sendBatch() {
     batch++;
     ordered = 0;
-    nextJump = elapsed;
+    nextJump = trench && batch > 0 ? Math.max(elapsed, nextJump) : elapsed;
   }
 
   function reset() {
     batch = -1;
     elapsed = remaining = defeated = 0;
+    closestTrenchDistance = Infinity;
     pursuer = undefined;
     previousLook.set(0, 0, 0);
     for (const enemy of enemies) {
@@ -91,7 +104,10 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
     const [x, y, z] = lane;
     for (const [dx, dy] of SPAWN_ALTERNATES) {
       enemy.position.set(x + dx, y + dy, z).applyQuaternion(orientation).add(origin);
-      if (trench) enemy.position.y = Math.max(18, Math.min(160, enemy.position.y));
+      if (trench) {
+        enemy.position.y = Math.max(18, Math.min(TRENCH_HEIGHT + 9, enemy.position.y));
+        enemy.position.z = Math.max(EXHAUST_Z + 60, enemy.position.z);
+      }
       const blocked = rocks.some((rock) => enemy.position.distanceToSquared(rock.position) < (rock.radius + 22) ** 2);
       const crowded = enemies.some((other) => other !== enemy && (other.model.visible || other.jump.active)
         && enemy.position.distanceToSquared(other.position) < 45 ** 2);
@@ -155,6 +171,7 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
 
   function update(dt, ship, orientation, playerVelocity, fire, pilotBoosting = false) {
     elapsed += dt;
+    if (trench) closestTrenchDistance = Math.min(closestTrenchDistance, ship.position.z - EXHAUST_Z);
     for (const enemy of enemies) {
       const { jump } = enemy;
       if (!jump.active) continue;
@@ -170,23 +187,16 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
     // Only count enemies that have arrived. A gap during an incoming group cannot trigger the next group.
     const landing = enemies.some(({ jump }) => jump.active && jump.age < JUMP_SECONDS);
     const nextGroupReady = fleet ? (batch === 0 ? defeated >= 4 : remaining <= 2) : remaining <= 1;
-    if (!trench && batch < formations.length - 1 && ordered === formations[batch].length && !landing && nextGroupReady) {
+    const waveReady = trench ? closestTrenchDistance <= TRENCH_THRESHOLDS[batch] : !landing && nextGroupReady;
+    if (batch < formations.length - 1 && ordered === formations[batch].length && waveReady) {
       sendBatch();
-      regroup = batch === 1;
+      regroup = !trench && batch === 1;
     }
     if (ordered < formations[batch].length && elapsed + 1e-8 >= nextJump) {
       const slot = enemies.find(({ model, jump }) => !model.visible && !jump.active);
       if (slot) {
-        beginJump(slot, ship.position, orientation, ordered++);
+        beginJump(slot, ship.position, trench ? trenchOrientation : orientation, ordered++);
         nextJump = elapsed + STAGGER;
-      }
-    }
-    // Continuous interceptors, with fewer replacements once the trench run starts.
-    if (trench && ordered === formations[batch].length && !landing && defeated > 0 && remaining < (defeated < 8 ? 4 : 2) && elapsed >= nextJump + .9) {
-      const slot = enemies.find(({ model, jump }) => !model.visible && !jump.active);
-      if (slot) {
-        beginJump(slot, ship.position, orientation, defeated % formations[0].length);
-        nextJump = elapsed + .65;
       }
     }
     const active = enemies.filter(({ model }) => model.visible);
@@ -205,6 +215,7 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
       return behind < relative.copy(best.position).sub(ship.position).dot(pilotForward) ? candidate : best;
     }, undefined);
     for (const enemy of active) enemy.framePosition.copy(enemy.position);
+    let chargingCount = trench ? active.filter((enemy) => enemy.charging > 0).length : 0;
     for (const enemy of active) {
       const { member, batch: rank, model, position, heading, velocity } = enemy;
       enemy.age += dt;
@@ -212,7 +223,7 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
       toward.copy(ship.position).sub(position);
       const distance = toward.length();
       toward.divideScalar(distance || 1);
-      const difficultyRamp = trench ? Math.min(1, .35 + defeated * .075) : rank / (formations.length - 1);
+      const difficultyRamp = rank / (formations.length - 1);
       const phase = enemy.age * .79 + enemy.slot * 2.4;
       const [lateral, height, fore] = ATTACK_LANES[enemy.slot % ATTACK_LANES.length];
       const side = Math.sign(lateral);
@@ -243,7 +254,7 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
             else enemy.wideSide *= -1;
             enemy.widePoint.copy(position).addScaledVector(heading, 138)
               .addScaledVector(offset, enemy.wideSide * 175).addScaledVector(UP, 28);
-            if (trench) enemy.widePoint.y = THREE.MathUtils.clamp(enemy.widePoint.y, 19, 151);
+            if (trench) enemy.widePoint.y = THREE.MathUtils.clamp(enemy.widePoint.y, 19, TRENCH_HEIGHT);
           }
         } else if (!duel) {
           enemy.pursuitTime = Math.max(0, enemy.pursuitTime - dt * 1.6);
@@ -260,7 +271,7 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
         if (enemy.flight === "flank") {
           station.copy(ship.position).addScaledVector(pilotRight, lateral + side * (Math.sin(phase) * 22))
             .addScaledVector(pilotForward, fore).addScaledVector(UP, height + Math.cos(phase * .77) * 24);
-          if (trench) station.y = Math.max(23, Math.min(156, station.y));
+          if (trench) station.y = Math.max(23, Math.min(TRENCH_HEIGHT + 5, station.y));
           desired.copy(station).sub(position).normalize();
           const setUp = Math.abs(cross) > 60 || axis > 105 || Math.abs(relative.y) > 80;
           if (setUp && enemy.flightAge > 1.25 + (enemy.slot % 4) * .46 && distance < 360
@@ -334,8 +345,9 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
             fire(enemy, desired);
           }
         }
-      } else if (!enemy.cooldown && !enemy.wideTime && (isTail || enemy.flight !== "break") && distance > 52 && distance < 258 && heading.dot(toward) > 0.76) {
+      } else if ((!trench || chargingCount < 2) && !enemy.cooldown && !enemy.wideTime && (isTail || enemy.flight !== "break") && distance > 52 && distance < 258 && heading.dot(toward) > 0.76) {
         enemy.charging = CHARGE_TIME;
+        chargingCount++;
       }
     }
     return regroup;
@@ -346,8 +358,9 @@ export function createPatrol(models, rocks, tuning, silhouette = 1, fleet = fals
     get batch() { return batch; },
     get remaining() { return remaining; },
     get defeated() { return defeated; },
-    total: trench ? 8 : total,
+    total,
+    scoringQuota: trench ? TRENCH_QUOTA : total,
     get inbound() { return ordered < formations[batch].length || enemies.some(({ jump }) => jump.active && jump.age < JUMP_SECONDS); },
-    get complete() { return trench ? defeated >= 8 : defeated === total; }
+    get complete() { return defeated === total; }
   };
 }

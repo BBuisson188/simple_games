@@ -85,8 +85,13 @@ Each Firestore score document contains exactly `playerName`, `score`, `gameId`, 
 | Airplane Shooter | `airplane-shooter` | `leaderboards/airplane-shooter/scores` | `miniGames.airplaneShooterLeaderboard` | `miniGames.airplaneShooterPendingGlobalScores` |
 | Starfighter Arena | `starfighter-arena` | `leaderboards/starfighter-arena/scores` | `miniGames.starfighterArenaLeaderboard`, `.difficulty2`, `.difficulty3` | `miniGames.starfighterArenaPendingGlobalScores` |
 | Chomp Chase | `chomp-chase` | `leaderboards/chomp-chase/scores` | `chomp-chase-leaderboard` | `chomp-chase-pending-global-scores` |
+| Starfighter 3D | `starfighter-3d-rookie`, `starfighter-3d-standard`, `starfighter-3d-ace` | `leaderboards/{gameId}/scores` | `miniGames.starfighter3D.{difficulty}.local` | `miniGames.starfighter3D.{difficulty}.pending` |
 
 Each pending sync key also has a `.globalCache` companion key that stores the last known Firestore top 10 for offline display. Additional local keys: Starfighter saves the last player name at `miniGames.starfighterArenaLastName`; Chomp Chase saves its high score and last player name at `chomp-chase-high-score` and `chomp-chase-player-name`.
+
+Starfighter 3D ranks runs started at Stage 1. A named score can be saved after a loss or after clearing Stage 3. Saving returns to the arcade; retrying discards the result and restores the stage-entry total. Later-stage starts and retries are practice. Each clear earns 1,500 points plus a speed bonus (1,200 minus 5 per active second, floored at zero). Personal fighter kills earn 100 points (up to eight in the trench); turrets earn 75. Hits cost 150 each, and laser volleys cost 1 each up to 100 per stage. Stage subtotals never go below zero. Each difficulty has its own global top 10.
+
+The `beau-games` Firestore leaderboard rules allow the three exact Starfighter 3D game IDs with the same read/create access and document validation used for Starfighter Arena. Keep updates/deletes disabled; there is no need for a wildcard or to create empty collections manually.
 
 ## GitHub Pages Deployment
 
@@ -114,6 +119,7 @@ This project uses relative paths like `./app.js`, which keeps it compatible with
 - Change Starfighter Arena behavior in `games/starfighter-sinistar.js`.
 - Change Chomp Chase behavior in `games/chomp_chase_game.js`.
 - Change shared Firestore leaderboard behavior in `games/global-leaderboard.js`.
+- Run the Starfighter 3D scoring and trench wave tests with `node --test tests/starfighter-3d.test.mjs` (Node.js 24).
 - Change layout, colors, and responsive styling in `styles.css`.
 - Add new local images, sounds, or other files inside `assets/`, then add those paths to `service-worker.js`.
 - When cached files change, update both the app version in `app.js` and the cache name in `service-worker.js`.

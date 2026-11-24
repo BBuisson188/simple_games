@@ -98,7 +98,7 @@ function writeJson(key, value) {
 export function createGlobalLeaderboard({ gameId, pendingKey }) {
   const firestorePath = ["leaderboards", gameId, "scores"];
   const cacheKey = `${pendingKey}.globalCache`;
-  let syncing = false;
+  let syncing;
 
   async function scoresCollection() {
     const db = await ensureFirestore();
@@ -233,53 +233,60 @@ export function createGlobalLeaderboard({ gameId, pendingKey }) {
   }
 
   async function syncPendingScores() {
+    if (syncing) return syncing;
     const pending = getPendingScores();
-    if (!pending.length || syncing) return { synced: 0, skipped: 0 };
-    syncing = true;
+    if (!pending.length) return { synced: 0, skipped: 0 };
+    syncing = syncScores(pending);
     try {
-      const scoresRef = await scoresCollection();
-      if (!scoresRef) throw new Error(firebaseState.error || "Firebase is not configured.");
-      if (typeof navigator !== "undefined" && navigator.onLine === false) {
-        throw new Error("Offline; pending scores will sync later.");
-      }
-      const { addDoc, serverTimestamp } = await loadFirebaseSdk();
-      let globalScores = await getGlobalScores();
-      const remaining = [];
-      let synced = 0;
-      let skipped = 0;
-
-      for (const entry of pending.sort(compareScores)) {
-        if (scoreAlreadyPresent(entry, globalScores)) {
-          skipped += 1;
-          continue;
-        }
-
-        if (!scoreQualifiesForList(entry.score, globalScores)) {
-          skipped += 1;
-          continue;
-        }
-
-        try {
-          await addDoc(scoresRef, {
-            playerName: entry.name,
-            score: entry.score,
-            gameId,
-            createdAt: serverTimestamp()
-          });
-          synced += 1;
-          globalScores = [...globalScores, entry].sort(compareScores).slice(0, LEADERBOARD_LIMIT);
-          saveCachedScores(globalScores);
-        } catch (error) {
-          remaining.push(entry);
-          console.warn("Pending global score sync failed; keeping it queued.", error);
-        }
-      }
-
-      savePendingScores(remaining);
-      return { synced, skipped };
+      return await syncing;
     } finally {
-      syncing = false;
+      syncing = undefined;
     }
+  }
+
+  async function syncScores(pending) {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      throw new Error("Offline; pending scores will sync later.");
+    }
+    const scoresRef = await scoresCollection();
+    if (!scoresRef) throw new Error(firebaseState.error || "Firebase is not configured.");
+    const { addDoc, serverTimestamp } = await loadFirebaseSdk();
+    let globalScores = await getGlobalScores();
+    const remaining = [];
+    let synced = 0;
+    let skipped = 0;
+
+    for (const entry of pending.sort(compareScores)) {
+      if (scoreAlreadyPresent(entry, globalScores)) {
+        skipped += 1;
+        continue;
+      }
+
+      if (!scoreQualifiesForList(entry.score, globalScores)) {
+        skipped += 1;
+        continue;
+      }
+
+      try {
+        await addDoc(scoresRef, {
+          playerName: entry.name,
+          score: entry.score,
+          gameId,
+          createdAt: serverTimestamp()
+        });
+        synced += 1;
+        globalScores = [...globalScores, entry].sort(compareScores).slice(0, LEADERBOARD_LIMIT);
+        saveCachedScores(globalScores);
+      } catch (error) {
+        remaining.push(entry);
+        console.warn("Pending global score sync failed; keeping it queued.", error);
+      }
+    }
+
+    const processedIds = new Set(pending.map((entry) => entry.id));
+    // A new score can be queued while a Firestore request is in flight.
+    savePendingScores([...remaining, ...getPendingScores().filter((entry) => !processedIds.has(entry.id))]);
+    return { synced, skipped };
   }
 
   async function getBestScores(localScores = []) {

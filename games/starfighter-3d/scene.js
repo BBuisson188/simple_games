@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "./vendor/loaders/GLTFLoader.js";
 import { mergeVertices } from "./vendor/utils/BufferGeometryUtils.js";
-import { CHARGE_TIME, FIGHTER_POOL, FLEET_FIGHTER_POOL } from "./patrol.js";
+import { CHARGE_TIME, FIGHTER_POOL, FLEET_FIGHTER_POOL, TRENCH_FIGHTER_POOL } from "./patrol.js";
 import { createCarrierView } from "./carrier-view.js";
 import { createFighterFleet } from "./fighter-view.js";
 import { createFighterJumps } from "./jump-view.js";
@@ -231,7 +231,7 @@ export function createFlightScene(canvas, playerFighter, carrierVariant, tuningR
   const texture = glowTexture();
   const wreck = createFighterWreck(scene, ship, playerFighter, camera, texture);
   const battle = fleetBattle ? createFleetBattle(scene, texture, playerFighter) : null;
-  const drones = createFighterFleet(scene, texture, fleetBattle ? FLEET_FIGHTER_POOL : FIGHTER_POOL);
+  const drones = createFighterFleet(scene, texture, surfaceRun ? TRENCH_FIGHTER_POOL : fleetBattle ? FLEET_FIGHTER_POOL : FIGHTER_POOL);
   const drawFighterJumps = createFighterJumps(scene, drones.length);
   const trench = surfaceRun ? createTrench(scene, texture, tuningRate) : null;
   const carrierView = trench ? null : createCarrierView(scene, texture, carrierVariant);

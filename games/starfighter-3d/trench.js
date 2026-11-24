@@ -6,7 +6,15 @@ export const TRENCH_HALF = 43;
 export const TRENCH_FLOOR = -47;
 export const TRENCH_QUOTA = 8;
 export const EXHAUST_RANGE = 750;
-export const EXHAUST_Z = -525;
+export const EXHAUST_OPEN_DISTANCE = 850;
+export const TRENCH_START_Z = 168;
+// The original run from the spawn point to the port was 693 m.
+export const EXHAUST_Z = TRENCH_START_Z - 693 * 3;
+export const TRENCH_HEIGHT = 302;
+const OVERFLIGHT_Z = EXHAUST_Z - 680;
+const ENTRY_LIMIT_Z = 1350;
+export const TRENCH_CENTER_Z = (OVERFLIGHT_Z + ENTRY_LIMIT_Z) / 2;
+export const TRENCH_AXIAL_RADIUS = (ENTRY_LIMIT_Z - OVERFLIGHT_Z) / 2;
 const BULKHEAD_FACE = EXHAUST_Z - 8;
 const HOOD_FRONT = EXHAUST_Z + 20;
 const DECK = 0;
@@ -192,10 +200,10 @@ export function createTrench(scene, texture, tuningRate = 1) {
   const hatch = boxMesh(shield, panels, [18, 19, 2.2], [0, 0, 1.2]);
   boxMesh(hatch, lamps, [12, .9, .31], [0, 1.4, 1.24]);
   for (const side of [-1, 1]) {
-    for (const z of [25, 46, 68, 93, 128, 171, 228, 295, 355, 444, 520]) {
+    for (const z of [25, 46, 68, 93, 128, 171, 228, 295, 355, 444, 520, 625, 745, 875, 1015, 1165, 1325, 1505, 1705, 1915, 2070]) {
       boxMesh(runway, z < 355 ? guidance : lamps, [2.3, .16, 12], [side * 19, TRENCH_FLOOR + .14, EXHAUST_Z + z]);
     }
-    for (const z of [305, 490]) {
+    for (const z of [305, 490, 875, 1325, 1705, 2070]) {
       boxMesh(deck, panels, [5, 9, 7.7], [side * 48, 4.1, EXHAUST_Z + z]);
       boxMesh(deck, lamps, [2.9, .36, 1.83], [side * 47.2, 8.65, EXHAUST_Z + z]);
       boxMesh(runway, guidance, [2.65, .85, 1.6], [side * 47.2, 9, EXHAUST_Z + z]);
@@ -275,7 +283,7 @@ export function createTrench(scene, texture, tuningRate = 1) {
     return true;
   }
   function keepOverDeck(position, quaternion, dt) {
-    if (position.y <= 151) return false;
+    if (position.y <= TRENCH_HEIGHT) return false;
     aim.copy(FORWARD).applyQuaternion(quaternion);
     if (aim.y > -.1) {
       flarePoint.set(aim.x, -.40, aim.z);
